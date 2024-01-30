@@ -1,9 +1,11 @@
 use crate::gf256::GF256;
 
-fn get_random_buf(k: usize) -> Result<Vec<u8>, getrandom::Error> {
+fn get_random_buf(k: usize) -> Vec<u8> {
     let mut buf = vec![0u8; k];
-    getrandom::getrandom(&mut buf)?;
-    Ok(buf)
+    match getrandom::getrandom(&mut buf){
+        Ok(_) => buf,
+        Err(e) => panic!("Failed to generate random bytes: {}", e),
+    }
 }
 
 pub fn create_shares(secret: &str, k: usize, n: usize) -> Vec<Vec<u8>> {
@@ -20,12 +22,9 @@ pub fn create_shares(secret: &str, k: usize, n: usize) -> Vec<Vec<u8>> {
             let mut row: Vec<GF256> = vec![GF256(0); k];
             row[0] = GF256(byte);
 
-            if let Ok(random_bytes) = get_random_buf(k - 1) {
-                for i in 1..k {
-                    row[i] = GF256(random_bytes[i - 1]);
-                }
-            } else {
-                panic!("Failed to generate random bytes");
+            let random_bytes = get_random_buf(k - 1);
+            for i in 1..k {
+                row[i] = GF256(random_bytes[i - 1]);
             }
 
             row
@@ -37,12 +36,8 @@ pub fn create_shares(secret: &str, k: usize, n: usize) -> Vec<Vec<u8>> {
     for share in shares.iter_mut().take(n) {
         // For Each Part of the Secret
         for poly in polys.iter() {
-            let rnd: u8;
-            if let Ok(random_byte) = get_random_buf(1) {
-                rnd = random_byte[0];
-            } else {
-                panic!("Failed to generate random bytes");
-            }
+            
+            let rnd = get_random_buf(1)[0];
 
             share.push(rnd);
 
