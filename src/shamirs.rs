@@ -1,5 +1,7 @@
 use crate::gf256::GF256;
 
+// TODO: Probably ideal to use Result<T, E> instead of panicking
+
 fn get_random_buf(k: usize) -> Vec<u8> {
     let mut buf = vec![0u8; k];
     match getrandom::getrandom(&mut buf) {
@@ -20,12 +22,12 @@ pub fn build_shares(secret: &str, k: usize, n: usize) -> Vec<Vec<u8>> {
         .bytes()
         .enumerate()
         .map(|(_, byte)| {
-            let mut row: Vec<GF256> = vec![GF256(0); k];
-            row[0] = GF256(byte);
+            let mut row: Vec<GF256> = vec![GF256::ZERO; k];
+            row[0] = GF256::from(byte);
 
             let random_bytes = get_random_buf(k - 1);
             for i in 1..k {
-                row[i] = GF256(random_bytes[i - 1]);
+                row[i] = GF256::from(random_bytes[i - 1]);
             }
 
             row
@@ -41,14 +43,14 @@ pub fn build_shares(secret: &str, k: usize, n: usize) -> Vec<Vec<u8>> {
 
             share.push(rnd);
 
-            let mut eval: GF256 = GF256(0);
-            let mut power: GF256 = GF256(1);
+            let mut eval: GF256 = GF256::ZERO;
+            let mut power: GF256 = GF256::ONE;
             for coeff in poly.iter() {
                 eval += *coeff * power;
-                power *= GF256(rnd);
+                power *= GF256::from(rnd);
             }
 
-            share.push(eval.0);
+            share.push(eval.as_u8());
         }
     }
 
@@ -65,24 +67,39 @@ pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Vec<u8> {
     // shares[i+1] = y val
     let mut secret = vec![0u8; shares[0].len() / 2];
     for i in (0..shares[0].len()).step_by(2) {
-        let mut secret_temp = GF256(0);
+        let mut secret_temp = GF256::ZERO;
         for share in shares.iter() {
-            let mut num = GF256(1);
-            let mut denom = GF256(1);
+            let mut num = GF256::ONE;
+            let mut denom = GF256::ONE;
             for share2 in shares.iter() {
                 if share[i] == share2[i] {
                     continue;
                 };
 
-                num *= GF256(share2[i]);
-                denom *= GF256(share2[i]) - GF256(share[i]);
+                num *= GF256::from(share2[i]);
+                denom *= GF256::from(share2[i]) - GF256::from(share[i]);
             }
 
-            secret_temp += GF256(share[i + 1]) * num * denom.mul_inv();
+            secret_temp += GF256::from(share[i + 1]) * num * denom.mul_inv();
         }
 
-        secret[i / 2] = secret_temp.0;
+        secret[i / 2] = secret_temp.as_u8();
     }
 
     secret
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_shamirs_simple() {
+        for _ in 0..10 {
+            assert_eq!(
+                "Hello! Testing!".as_bytes().to_vec(),
+                rebuild_secret(build_shares("Hello! Testing!", 3, 5))
+            );
+        }
+    }
 }
