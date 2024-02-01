@@ -1,2 +1,3 @@
 mod gf256;
-mod shamirs;
+mod random;
+pub mod shamirs;

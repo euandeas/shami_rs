@@ -1,9 +1,8 @@
-use crate::gf256::GF256;
-use rand_core::{RngCore, OsRng};
+use crate::{gf256::GF256, random::random_no_zero_distinct_set};
 // TODO: Probably ideal to use Result<T, E> instead of panicking
 
 // TODO: For each part we must make sure that the x values are unique
-pub fn build_shares(secret: &str, k: usize, n: usize) -> Vec<Vec<u8>> {
+pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Vec<Vec<u8>> {
     assert!(
         k <= n,
         "Threshold should be less than or equal to the number of shares."
@@ -11,15 +10,13 @@ pub fn build_shares(secret: &str, k: usize, n: usize) -> Vec<Vec<u8>> {
 
     // create polynomial for each byte
     let polys: Vec<Vec<GF256>> = secret
-        .bytes()
+        .iter()
         .enumerate()
         .map(|(_, byte)| {
             let mut row: Vec<GF256> = vec![GF256::ZERO; k];
-            row[0] = GF256::from(byte);
+            row[0] = GF256::from(*byte);
 
-            //let random_bytes = get_random_buf(k - 1);
-            let mut random_bytes = vec![0u8; k-1];
-            OsRng.fill_bytes(&mut random_bytes);
+            let random_bytes = random_no_zero_distinct_set(k - 1);
             for i in 1..k {
                 row[i] = GF256::from(random_bytes[i - 1]);
             }
@@ -28,20 +25,21 @@ pub fn build_shares(secret: &str, k: usize, n: usize) -> Vec<Vec<u8>> {
         })
         .collect();
 
+    //Generate Shares (x, y) for each part of the secret
     let mut shares: Vec<Vec<u8>> = vec![vec![0u8; 0]; n];
-    // For Each Share
-    for share in shares.iter_mut().take(n) {
-        // For Each Part of the Secret
-        for poly in polys.iter() {
-            let rnd = OsRng.next_u64() as u8;// get_random_buf(1)[0];
 
-            share.push(rnd);
+    // For Each part of the secret
+    for poly in polys.iter() {
+        // For Each Share
+        let random_bytes = random_no_zero_distinct_set(n);
+        for (i, share) in shares.iter_mut().enumerate() {
+            share.push(random_bytes[i]);
 
             let mut eval: GF256 = GF256::ZERO;
             let mut power: GF256 = GF256::ONE;
             for coeff in poly.iter() {
                 eval += *coeff * power;
-                power *= GF256::from(rnd);
+                power *= GF256::from(random_bytes[i]);
             }
 
             share.push(eval.as_u8());
@@ -57,8 +55,8 @@ pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Vec<u8> {
 
     // Lagrange Interpolation:
     // For Each Part of the Secret
-    // shares[i] = x val
-    // shares[i+1] = y val
+    // x = shares[i]
+    // y = shares[i+1]
     let mut secret = vec![0u8; shares[0].len() / 2];
     for i in (0..shares[0].len()).step_by(2) {
         let mut secret_temp = GF256::ZERO;
@@ -89,10 +87,10 @@ mod tests {
 
     #[test]
     fn test_shamirs_simple() {
-        for _ in 0..10 {
+        for _ in 0..1000 {
             assert_eq!(
                 "Hello! Testing!".as_bytes().to_vec(),
-                rebuild_secret(build_shares("Hello! Testing!", 3, 5))
+                rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5))
             );
         }
     }
