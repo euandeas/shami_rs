@@ -1,14 +1,6 @@
 use crate::gf256::GF256;
-
+use rand_core::{RngCore, OsRng};
 // TODO: Probably ideal to use Result<T, E> instead of panicking
-
-fn get_random_buf(k: usize) -> Vec<u8> {
-    let mut buf = vec![0u8; k];
-    match getrandom::getrandom(&mut buf) {
-        Ok(_) => buf,
-        Err(e) => panic!("Failed to generate random bytes: {}", e),
-    }
-}
 
 // TODO: For each part we must make sure that the x values are unique
 pub fn build_shares(secret: &str, k: usize, n: usize) -> Vec<Vec<u8>> {
@@ -25,7 +17,9 @@ pub fn build_shares(secret: &str, k: usize, n: usize) -> Vec<Vec<u8>> {
             let mut row: Vec<GF256> = vec![GF256::ZERO; k];
             row[0] = GF256::from(byte);
 
-            let random_bytes = get_random_buf(k - 1);
+            //let random_bytes = get_random_buf(k - 1);
+            let mut random_bytes = vec![0u8; k-1];
+            OsRng.fill_bytes(&mut random_bytes);
             for i in 1..k {
                 row[i] = GF256::from(random_bytes[i - 1]);
             }
@@ -39,7 +33,7 @@ pub fn build_shares(secret: &str, k: usize, n: usize) -> Vec<Vec<u8>> {
     for share in shares.iter_mut().take(n) {
         // For Each Part of the Secret
         for poly in polys.iter() {
-            let rnd = get_random_buf(1)[0];
+            let rnd = OsRng.next_u64() as u8;// get_random_buf(1)[0];
 
             share.push(rnd);
 
