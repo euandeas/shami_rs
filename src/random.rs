@@ -26,8 +26,7 @@ mod tests {
     #[test]
     fn test_no_zero() {
         for _ in 0..10000 {
-            assert_ne!(
-                random_no_zero(),0);
+            assert_ne!(random_no_zero(), 0);
         }
     }
 

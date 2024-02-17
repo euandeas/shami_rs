@@ -2,7 +2,7 @@ use crate::{gf256::GF256, random::random_no_zero_distinct_set};
 // TODO: Probably ideal to use Result<T, E> instead of panicking
 
 // TODO: For each part we must make sure that the x values are unique
-pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Vec<Vec<u8>> {
+pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, &'static str> {
     assert!(
         k <= n,
         "Threshold should be less than or equal to the number of shares."
@@ -46,11 +46,11 @@ pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Vec<Vec<u8>> {
         }
     }
 
-    shares
+    Ok(shares)
 }
 
 // TODO: Validate this works after changes to creating shares
-pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Vec<u8> {
+pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, &'static str> {
     // TODO: Check For Valid Shares
 
     // Lagrange Interpolation:
@@ -78,7 +78,7 @@ pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Vec<u8> {
         secret[i / 2] = secret_temp.as_u8();
     }
 
-    secret
+    Ok(secret)
 }
 
 #[cfg(test)]
@@ -90,7 +90,7 @@ mod tests {
         for _ in 0..1000 {
             assert_eq!(
                 "Hello! Testing!".as_bytes().to_vec(),
-                rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5))
+                rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5).unwrap()).unwrap()
             );
         }
     }

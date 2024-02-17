@@ -1,23 +1,69 @@
 use crate::shamirs;
 use chacha20poly1305::{
-    aead::{Aead, AeadCore, KeyInit, OsRng},
-    XChaCha20Poly1305, XNonce
+    aead::{Aead, KeyInit, OsRng},
+    Error, XChaCha20Poly1305, XNonce,
 };
 
 //https://docs.rs/chacha20poly1305/latest/chacha20poly1305/index.html
 
-pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Vec<Vec<u8>> {
-    
+pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, &'static str> {
     let key = XChaCha20Poly1305::generate_key(&mut OsRng);
     let cipher = XChaCha20Poly1305::new(&key);
-    let ciphertext = cipher.encrypt(XNonce::from_slice(&[0; 24]), secret)?;
+    let ciphertext = match cipher.encrypt(XNonce::from_slice(&[0; 24]), secret) {
+        Ok(ciphertext) => ciphertext,
+        Err(Error) => return Err("Error Encrypting Secret!"),
+    };
 
-    
-    shamirs::build_shares(secret, k, n)
-    //build_shares(key, k, n)
+    let mut shares = match shamirs::build_shares(&key, k, n) {
+        Ok(shares) => shares,
+        Err(e) => return Err(e),
+    };
+
+    for share in &mut shares {
+        share.extend_from_slice(&ciphertext);
+    }
+
+    Ok(shares)
 }
 
 // TODO: Validate this works after changes to creating shares
-pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Vec<u8> {
-    
+pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, &'static str> {
+    let mut keys = Vec::new();
+    for share in &shares {
+        let key = &share[..64];
+        keys.push(key.to_vec());
+    }
+
+    let actual_key = match shamirs::rebuild_secret(keys) {
+        Ok(key) => key,
+        Err(e) => return Err(e),
+    };
+
+    let cipher = match XChaCha20Poly1305::new_from_slice(&actual_key) {
+        Ok(cipher) => cipher,
+        Err(_) => return Err("Key has invalid length!"),
+    };
+
+    let ciphertext = &shares[0][64..];
+    let plaintext = match cipher.decrypt(XNonce::from_slice(&[0; 24]), ciphertext) {
+        Ok(plaintext) => plaintext,
+        Err(Error) => return Err("Error Decrypting Secret!"),
+    };
+
+    Ok(plaintext)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_aeadwrapper_simple() {
+        for _ in 0..1000 {
+            assert_eq!(
+                "Hello! Testing!".as_bytes().to_vec(),
+                rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5).unwrap()).unwrap()
+            );
+        }
+    }
 }
