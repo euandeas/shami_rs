@@ -7,5 +7,6 @@ authors = ["Euan Deas"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+bip39 = { version = "2.0.0", features = ["all-languages"] }
 chacha20poly1305 = "0.10.1"
 rand_core = { version = "0.6.4", features = ["getrandom"] }

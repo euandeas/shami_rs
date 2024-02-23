@@ -1,6 +1,9 @@
 use crate::{gf256::GF256, random::random_no_zero_distinct_set};
 // TODO: Probably ideal to use Result<T, E> instead of panicking
 
+pub type BuildShares = fn(&[u8], usize, usize) -> Result<Vec<Vec<u8>>, &'static str>;
+pub type RebuildSecret = fn(Vec<Vec<u8>>) -> Result<Vec<u8>, &'static str>;
+
 // TODO: For each part we must make sure that the x values are unique
 pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, &'static str> {
     assert!(
