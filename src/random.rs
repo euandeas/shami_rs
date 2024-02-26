@@ -32,7 +32,7 @@ mod tests {
 
     #[test]
     fn test_random_no_zero_distinct_set() {
-        for _ in 0..1000 {
+        for _ in 0..10000 {
             let result = random_no_zero_distinct_set(10);
             let set: HashSet<_> = result.iter().collect();
             assert_eq!(result.len(), set.len());
