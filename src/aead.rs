@@ -3,11 +3,11 @@ use chacha20poly1305::{
     Error, XChaCha20Poly1305, XNonce,
 };
 
-use crate::shamirs::{build_shares, rebuild_secret};
+use crate::base;
 
 //https://docs.rs/chacha20poly1305/latest/chacha20poly1305/index.html
 
-pub fn build_shares_aead(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, &'static str> {
+pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, &'static str> {
     let key = XChaCha20Poly1305::generate_key(&mut OsRng);
     let cipher = XChaCha20Poly1305::new(&key);
     let ciphertext = match cipher.encrypt(XNonce::from_slice(&[0; 24]), secret) {
@@ -15,7 +15,7 @@ pub fn build_shares_aead(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8
         Err(Error) => return Err("Error Encrypting Secret!"),
     };
 
-    let mut shares = match build_shares(&key, k, n) {
+    let mut shares = match base::build_shares(&key, k, n) {
         Ok(shares) => shares,
         Err(e) => return Err(e),
     };
@@ -27,14 +27,14 @@ pub fn build_shares_aead(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8
     Ok(shares)
 }
 
-pub fn rebuild_secret_aead(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, &'static str> {
+pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, &'static str> {
     let mut keys = Vec::new();
     for share in &shares {
         let key = &share[..33];
         keys.push(key.to_vec());
     }
 
-    let actual_key = match rebuild_secret(keys) {
+    let actual_key = match base::rebuild_secret(keys) {
         Ok(key) => key,
         Err(e) => return Err(e),
     };
@@ -61,7 +61,7 @@ mod tests {
     fn test_aeadwrapper_simple() {
         assert_eq!(
             "Hello! Testing!".as_bytes().to_vec(),
-            rebuild_secret_aead(build_shares_aead("Hello! Testing!".as_bytes(), 3, 5).unwrap())
+            rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5).unwrap())
                 .unwrap()
         );
     }

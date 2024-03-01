@@ -1,5 +1,5 @@
-pub mod aead_wrapper;
-pub mod bip_wrapper;
+pub mod aead;
+pub mod base;
+pub mod bip39;
 mod gf256;
 mod random;
-pub mod shamirs;
