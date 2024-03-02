@@ -1,7 +1,42 @@
+use std::fmt;
+
 use bip39::Mnemonic;
 
-use crate::base;
-use crate::aead;
+use crate::base::{self, ShamirError};
+use crate::aead::{self, ShamirAEADError};
+
+
+#[derive(Debug)]
+pub enum BIPShamirError {
+    ShamirError(ShamirError),
+    Utf8Error,
+    MnemonicError
+}
+
+#[derive(Debug)]
+pub enum BIPShamirAEADError {
+    BIPShamirError(BIPShamirError),
+    ShamirAEADError(ShamirAEADError)
+}
+
+impl fmt::Display for BIPShamirError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BIPShamirError::ShamirError(e) => write!(f, "{}", e),
+            BIPShamirError::Utf8Error => write!(f, "Invalid UTF-8 String."),
+            BIPShamirError::MnemonicError => write!(f, "Invalid Mnemonic."),
+        }
+    }
+}
+
+impl fmt::Display for BIPShamirAEADError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BIPShamirAEADError::BIPShamirError(e) => write!(f, "{}", e),
+            BIPShamirAEADError::ShamirAEADError(e) => write!(f, "{}", e),
+        }
+    }
+}
 
 fn verify_mnemonic(secret: &[u8]) -> Result<Mnemonic, &'static str> {
     let string = match std::str::from_utf8(secret) {

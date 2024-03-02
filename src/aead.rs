@@ -1,13 +1,32 @@
+use std::fmt;
+
 use chacha20poly1305::{
     aead::{Aead, KeyInit, OsRng},
     Error, XChaCha20Poly1305, XNonce,
 };
 
-use crate::base;
+use crate::base::{self, ShamirError};
 
-//https://docs.rs/chacha20poly1305/latest/chacha20poly1305/index.html
+#[derive(Debug)]
+pub enum ShamirAEADError {
+    ShamirError(ShamirError),
+    KeyLengthError,
+    EncryptionError,
+    DecryptionError
+}
 
-pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, &'static str> {
+impl fmt::Display for ShamirAEADError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ShamirAEADError::ShamirError(e) => write!(f, "{}", e),
+            ShamirAEADError::KeyLengthError => write!(f, "Key has invalid length."),
+            ShamirAEADError::EncryptionError => write!(f, "Error Encrypting Secret."),
+            ShamirAEADError::DecryptionError => write!(f, "Error Decrypting Secret."),
+        }
+    }
+}
+
+pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, ShamirAEADError> {
     let key = XChaCha20Poly1305::generate_key(&mut OsRng);
     let cipher = XChaCha20Poly1305::new(&key);
     let ciphertext = match cipher.encrypt(XNonce::from_slice(&[0; 24]), secret) {
@@ -27,7 +46,7 @@ pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, &
     Ok(shares)
 }
 
-pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, &'static str> {
+pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ShamirAEADError> {
     let mut keys = Vec::new();
     for share in &shares {
         let key = &share[..33];
