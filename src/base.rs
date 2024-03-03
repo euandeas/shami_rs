@@ -1,3 +1,4 @@
+//! Provides base Shamir's Secret Sharing functionality.
 use std::fmt;
 
 use crate::{gf256::GF256, random::random_no_zero_distinct_set};
@@ -23,10 +24,17 @@ impl fmt::Display for Error {
 }
 
 pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, Error> {
-    assert!(
-        k <= n,
-        "Threshold should be less than or equal to the number of shares."
-    );
+    if n == 0 {
+        return Err(Error::ZeroSharesError);
+    }
+    
+    if k == 0 {
+        return Err(Error::ZeroMinimumSharesError);
+    }
+
+    if k > n {
+        return Err(Error::ThresholdError);
+    }
 
     // create polynomial for each byte
     let polys: Vec<Vec<GF256>> = secret
@@ -67,12 +75,10 @@ pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, E
 }
 
 pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, Error> {
-    // TODO: Check For Valid Shares
-
-    // Lagrange Interpolation:
-    // For Each Part of the Secret
-    // x = shares[0]
-    // y = shares[0..]
+    if shares.is_empty() {
+        return Err(Error::ZeroSharesError);
+    }
+ 
     let mut secret = vec![0u8; shares[0].len() - 1];
 
     for i in 1..shares[0].len() {
@@ -124,7 +130,6 @@ pub fn build_shares_randomised(secret: &[u8], k: usize, n: usize) -> Result<Vec<
         "Threshold should be less than or equal to the number of shares."
     );
 
-    // create polynomial for each byte
     let polys: Vec<Vec<GF256>> = secret
         .iter()
         .enumerate()
@@ -141,12 +146,9 @@ pub fn build_shares_randomised(secret: &[u8], k: usize, n: usize) -> Result<Vec<
         })
         .collect();
 
-    //Generate Shares (x, y) for each part of the secret
     let mut shares: Vec<Vec<u8>> = vec![vec![0u8; 0]; n];
 
-    // For Each part of the secret
     for poly in polys.iter() {
-        // For Each Share
         let random_bytes = random_no_zero_distinct_set(n);
         for (i, share) in shares.iter_mut().enumerate() {
             share.push(random_bytes[i]);
@@ -166,12 +168,6 @@ pub fn build_shares_randomised(secret: &[u8], k: usize, n: usize) -> Result<Vec<
 }
 
 pub fn rebuild_secret_randomised(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, &'static str> {
-    // TODO: Check For Valid Shares
-
-    // Lagrange Interpolation:
-    // For Each Part of the Secret
-    // x = shares[i]
-    // y = shares[i+1]
     let mut secret = vec![0u8; shares[0].len() / 2];
     for i in (0..shares[0].len()).step_by(2) {
         let mut secret_temp = GF256::ZERO;
