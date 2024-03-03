@@ -1,3 +1,4 @@
+//! Provides Shamir's Secret Sharing functionality for bip39 mnemonics.
 use std::fmt;
 
 use bip39::Mnemonic;
@@ -5,6 +6,7 @@ use bip39::Mnemonic;
 use crate::aead;
 use crate::base;
 
+///
 #[derive(Debug)]
 pub enum ErrorBip {
     ZeroSharesError,
@@ -13,6 +15,7 @@ pub enum ErrorBip {
     MnemonicError,
 }
 
+///
 #[derive(Debug)]
 pub enum ErrorBipAead {
     ZeroSharesError,
@@ -92,6 +95,21 @@ fn verify_mnemonic(secret: &[u8]) -> Result<Mnemonic, ()> {
     }
 }
 
+/// Explanation
+///
+/// # Arguments
+///
+/// * `p1` - A point in 2D space.
+///
+/// # Returns
+///
+/// * A float representing the distance.
+///
+/// # Example
+///
+/// ```
+///
+/// ```
 pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, ErrorBip> {
     let m = match verify_mnemonic(secret) {
         Ok(m) => m,
@@ -106,6 +124,21 @@ pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, E
     Ok(shares)
 }
 
+/// Explanation
+///
+/// # Arguments
+///
+/// * `p1` - A point in 2D space.
+///
+/// # Returns
+///
+/// * A float representing the distance.
+///
+/// # Example
+///
+/// ```
+///
+/// ```
 pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorBip> {
     let secret = match base::rebuild_secret(shares) {
         Ok(secret) => secret,
@@ -120,6 +153,21 @@ pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorBip> {
     Ok(m.to_string().into_bytes())
 }
 
+/// Explanation
+///
+/// # Arguments
+///
+/// * `p1` - A point in 2D space.
+///
+/// # Returns
+///
+/// * A float representing the distance.
+///
+/// # Example
+///
+/// ```
+///
+/// ```
 pub fn build_shares_aead(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, ErrorBipAead> {
     let m = match verify_mnemonic(secret) {
         Ok(m) => m,
@@ -134,6 +182,21 @@ pub fn build_shares_aead(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8
     Ok(shares)
 }
 
+/// Explanation
+///
+/// # Arguments
+///
+/// * `p1` - A point in 2D space.
+///
+/// # Returns
+///
+/// * A float representing the distance.
+///
+/// # Example
+///
+/// ```
+///
+/// ```
 pub fn rebuild_secret_aead(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorBipAead> {
     let secret = match aead::rebuild_secret(shares) {
         Ok(secret) => secret,

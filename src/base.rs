@@ -3,6 +3,7 @@ use std::fmt;
 
 use crate::{gf256::GF256, random::random_no_zero_distinct_set};
 
+///
 #[derive(Debug)]
 pub enum Error {
     ZeroSharesError,
@@ -23,6 +24,21 @@ impl fmt::Display for Error {
     }
 }
 
+/// Explanation
+///
+/// # Arguments
+///
+/// * `p1` - A point in 2D space.
+///
+/// # Returns
+///
+/// * A float representing the distance.
+///
+/// # Example
+///
+/// ```
+///
+/// ```
 pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, Error> {
     if n == 0 {
         return Err(Error::ZeroSharesError);
@@ -74,6 +90,21 @@ pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, E
     Ok(shares)
 }
 
+/// Explanation
+///
+/// # Arguments
+///
+/// * `p1` - A point in 2D space.
+///
+/// # Returns
+///
+/// * A float representing the distance.
+///
+/// # Example
+///
+/// ```
+///
+/// ```
 pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, Error> {
     if shares.is_empty() {
         return Err(Error::ZeroSharesError);

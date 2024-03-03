@@ -1,3 +1,4 @@
+//! Provides Shamir's Secret Sharing functionality with XChaCha20Poly1305 wrapper.
 use std::fmt;
 
 use chacha20poly1305::{
@@ -7,6 +8,7 @@ use chacha20poly1305::{
 
 use crate::base::{self, Error};
 
+/// 
 #[derive(Debug)]
 pub enum ErrorAead {
     ZeroSharesError,
@@ -43,6 +45,21 @@ impl From<base::Error> for ErrorAead {
     }
 }
 
+/// Explanation
+///
+/// # Arguments
+///
+/// * `p1` - A point in 2D space.
+///
+/// # Returns
+///
+/// * A float representing the distance.
+///
+/// # Example
+///
+/// ```
+///
+/// ```
 pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, ErrorAead> {
     let key = XChaCha20Poly1305::generate_key(&mut OsRng);
     let cipher = XChaCha20Poly1305::new(&key);
@@ -63,6 +80,21 @@ pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, E
     Ok(shares)
 }
 
+/// Explanation
+///
+/// # Arguments
+///
+/// * `p1` - A point in 2D space.
+///
+/// # Returns
+///
+/// * A float representing the distance.
+///
+/// # Example
+///
+/// ```
+///
+/// ```
 pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorAead> {
     let mut keys = Vec::new();
     for share in &shares {
