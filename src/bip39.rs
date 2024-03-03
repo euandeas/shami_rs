@@ -2,99 +2,147 @@ use std::fmt;
 
 use bip39::Mnemonic;
 
-use crate::base::{self, ShamirError};
-use crate::aead::{self, ShamirAEADError};
-
+use crate::aead;
+use crate::base;
 
 #[derive(Debug)]
-pub enum BIPShamirError {
-    ShamirError(ShamirError),
-    Utf8Error,
-    MnemonicError
+pub enum ErrorBip {
+    ZeroSharesError,
+    ZeroMinimumSharesError,
+    ThresholdError,
+    MnemonicError,
 }
 
 #[derive(Debug)]
-pub enum BIPShamirAEADError {
-    BIPShamirError(BIPShamirError),
-    ShamirAEADError(ShamirAEADError)
+pub enum ErrorBipAead {
+    ZeroSharesError,
+    ZeroMinimumSharesError,
+    ThresholdError,
+    KeyLengthError,
+    EncryptionError,
+    DecryptionError,
+    MnemonicError,
 }
 
-impl fmt::Display for BIPShamirError {
+impl fmt::Display for ErrorBip {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BIPShamirError::ShamirError(e) => write!(f, "{}", e),
-            BIPShamirError::Utf8Error => write!(f, "Invalid UTF-8 String."),
-            BIPShamirError::MnemonicError => write!(f, "Invalid Mnemonic."),
+            ErrorBip::ZeroSharesError => write!(f, "Must be more than 0 shares."),
+            ErrorBip::ZeroMinimumSharesError => write!(f, "Must be more than 0 minimum shares."),
+            ErrorBip::ThresholdError => write!(
+                f,
+                "Number of minimum shares must be less than or equal to number of shares."
+            ),
+            ErrorBip::MnemonicError => write!(f, "Error parsing Mnemonic."),
         }
     }
 }
 
-impl fmt::Display for BIPShamirAEADError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            BIPShamirAEADError::BIPShamirError(e) => write!(f, "{}", e),
-            BIPShamirAEADError::ShamirAEADError(e) => write!(f, "{}", e),
+impl From<base::Error> for ErrorBip {
+    fn from(e: base::Error) -> Self {
+        match e {
+            base::Error::ZeroSharesError => ErrorBip::ZeroSharesError,
+            base::Error::ZeroMinimumSharesError => ErrorBip::ZeroMinimumSharesError,
+            base::Error::ThresholdError => ErrorBip::ThresholdError,
         }
     }
 }
 
-fn verify_mnemonic(secret: &[u8]) -> Result<Mnemonic, &'static str> {
+impl fmt::Display for ErrorBipAead {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ErrorBipAead::ZeroSharesError => write!(f, "Must be more than 0 shares."),
+            ErrorBipAead::ZeroMinimumSharesError => {
+                write!(f, "Must be more than 0 minimum shares.")
+            }
+            ErrorBipAead::ThresholdError => write!(
+                f,
+                "Number of minimum shares must be less than or equal to number of shares."
+            ),
+            ErrorBipAead::KeyLengthError => write!(f, "Key has invalid length."),
+            ErrorBipAead::EncryptionError => write!(f, "Error Encrypting Secret."),
+            ErrorBipAead::DecryptionError => write!(f, "Error Decrypting Secret."),
+            ErrorBipAead::MnemonicError => write!(f, "Error parsing Mnemonic."),
+        }
+    }
+}
+
+impl From<aead::ErrorAead> for ErrorBipAead {
+    fn from(e: aead::ErrorAead) -> Self {
+        match e {
+            aead::ErrorAead::ZeroSharesError => ErrorBipAead::ZeroSharesError,
+            aead::ErrorAead::ZeroMinimumSharesError => ErrorBipAead::ZeroMinimumSharesError,
+            aead::ErrorAead::ThresholdError => ErrorBipAead::ThresholdError,
+            aead::ErrorAead::KeyLengthError => ErrorBipAead::KeyLengthError,
+            aead::ErrorAead::EncryptionError => ErrorBipAead::EncryptionError,
+            aead::ErrorAead::DecryptionError => ErrorBipAead::DecryptionError,
+        }
+    }
+}
+
+fn verify_mnemonic(secret: &[u8]) -> Result<Mnemonic, ()> {
     let string = match std::str::from_utf8(secret) {
         Ok(s) => s,
-        Err(_) => return Err("Invalid String"),
+        Err(_) => return Err(()),
     };
 
     match Mnemonic::parse_normalized(string) {
         Ok(m) => Ok(m),
-        Err(_) => Err("Invalid Mnemonic"),
+        Err(_) => Err(()),
     }
 }
 
-pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, &'static str> {
-    let m = verify_mnemonic(secret)?;
+pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, ErrorBip> {
+    let m = match verify_mnemonic(secret) {
+        Ok(m) => m,
+        Err(_) => return Err(ErrorBip::MnemonicError),
+    };
 
     let shares = match base::build_shares(&m.to_entropy(), k, n) {
         Ok(shares) => shares,
-        Err(e) => return Err(e),
+        Err(e) => return Err(e.into()),
     };
 
     Ok(shares)
 }
 
-pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, &'static str> {
+pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorBip> {
     let secret = match base::rebuild_secret(shares) {
         Ok(secret) => secret,
-        Err(e) => return Err(e),
+        Err(e) => return Err(e.into()),
     };
 
     let m = match Mnemonic::from_entropy(&secret) {
         Ok(m) => m,
-        Err(_) => return Err("Invalid Mnemonic"),
+        Err(_) => return Err(ErrorBip::MnemonicError),
     };
 
     Ok(m.to_string().into_bytes())
 }
 
-pub fn build_shares_aead(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, &'static str> {
-    let m = verify_mnemonic(secret)?;
+pub fn build_shares_aead(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, ErrorBipAead> {
+    let m = match verify_mnemonic(secret) {
+        Ok(m) => m,
+        Err(_) => return Err(ErrorBipAead::MnemonicError),
+    };
 
     let shares = match aead::build_shares(&m.to_entropy(), k, n) {
         Ok(shares) => shares,
-        Err(e) => return Err(e),
+        Err(e) => return Err(e.into()),
     };
 
     Ok(shares)
 }
 
-pub fn rebuild_secret_aead(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, &'static str> {
+pub fn rebuild_secret_aead(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorBipAead> {
     let secret = match aead::rebuild_secret(shares) {
         Ok(secret) => secret,
-        Err(e) => return Err(e),
+        Err(e) => return Err(e.into()),
     };
 
     let m = match Mnemonic::from_entropy(&secret) {
         Ok(m) => m,
-        Err(_) => return Err("Invalid Mnemonic"),
+        Err(_) => return Err(ErrorBipAead::MnemonicError),
     };
 
     Ok(m.to_string().into_bytes())

@@ -3,23 +3,26 @@ use std::fmt;
 use crate::{gf256::GF256, random::random_no_zero_distinct_set};
 
 #[derive(Debug)]
-pub enum ShamirError {
+pub enum Error {
     ZeroSharesError,
     ZeroMinimumSharesError,
-    ThresholdError
+    ThresholdError,
 }
 
-impl fmt::Display for ShamirError {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ShamirError::ZeroSharesError => write!(f, "Must be morethan 0 shares."),
-            ShamirError::ZeroMinimumSharesError => write!(f, "Must be more than 0 minimum shares."),
-            ShamirError::ThresholdError => write!(f, "Number of minimum shares must be less than or equal to number of shares."),
+            Error::ZeroSharesError => write!(f, "Must be more than 0 shares."),
+            Error::ZeroMinimumSharesError => write!(f, "Must be more than 0 minimum shares."),
+            Error::ThresholdError => write!(
+                f,
+                "Number of minimum shares must be less than or equal to number of shares."
+            ),
         }
     }
 }
 
-pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, ShamirError> {
+pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, Error> {
     assert!(
         k <= n,
         "Threshold should be less than or equal to the number of shares."
@@ -63,7 +66,7 @@ pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, S
     Ok(shares)
 }
 
-pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ShamirError> {
+pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, Error> {
     // TODO: Check For Valid Shares
 
     // Lagrange Interpolation:
