@@ -226,8 +226,7 @@ pub fn build_shares_predefined(
     let mut polys: Vec<Vec<GF256>> = vec![vec![GF256::ZERO; ncoefs]; npolys];
 
     for i in 1..shares[0].len() {
-        let mut polystemp = vec![vec![GF256::ZERO; ncoefs]; ncoefs];
-        let mut k = 0;
+        let mut polytemp = vec![GF256::ZERO; ncoefs];
         for share in shares.iter() {
             let mut coeffs = vec![GF256::ONE];
             let mut denom = GF256::ONE;
@@ -246,32 +245,20 @@ pub fn build_shares_predefined(
                 denom *= GF256::from(share[0]) - GF256::from(share2[0]);
             }
 
-            //for j in 0..coeffs.len() {
-            for coeff in &mut coeffs {
-                *coeff *= denom.mul_inv();
-                *coeff *= GF256::from(share[i]);
-            }
-
-            polystemp[k] = coeffs;
-            k += 1;
-        }
-
-        let mut column_sums = vec![GF256::ZERO; polystemp[0].len()];
-
-        for row in polystemp {
-            for (i, &element) in row.iter().enumerate() {
-                column_sums[i] += element;
+            for (k, coeff) in coeffs.iter_mut().enumerate() {
+                polytemp[k] += *coeff * GF256::from(share[i]) * denom.mul_inv();
             }
         }
 
-        polys[i - 1] = column_sums;
+        polys[i - 1] = polytemp;
     }
 
-    let shares_left = n - pre_shares.len();
-    let mut new_shares: Vec<Vec<u8>> = vec![vec![0u8; 0]; shares_left];
+    let mut new_shares: Vec<Vec<u8>> = vec![vec![0u8; 0]; n - pre_shares.len()];
 
-    let random_bytes =
-        random_no_zero_distinct_set_with_preset(shares_left, shares.iter().map(|x| x[0]).collect());
+    let random_bytes = random_no_zero_distinct_set_with_preset(
+        n - pre_shares.len(),
+        shares.iter().map(|x| x[0]).collect(),
+    );
     for (i, share) in new_shares.iter_mut().enumerate() {
         share.push(random_bytes[i]);
 
