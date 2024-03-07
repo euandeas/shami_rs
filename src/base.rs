@@ -1,9 +1,13 @@
 //! Provides base Shamir's Secret Sharing functionality.
 use std::fmt;
 
+#[cfg(feature = "experimental")]
 use rand_core::{OsRng, RngCore};
 
-use crate::{gf256::GF256, random::{random_no_zero_distinct_set, random_no_zero_distinct_set_with_preset}};
+use crate::{
+    gf256::GF256,
+    random::{random_no_zero_distinct_set, random_no_zero_distinct_set_with_preset},
+};
 
 ///
 #[derive(Debug)]
@@ -11,6 +15,8 @@ pub enum Error {
     ZeroSharesError,
     ZeroMinimumSharesError,
     ThresholdError,
+    #[cfg(feature = "experimental")]
+    PredefinedSharesError,
 }
 
 impl fmt::Display for Error {
@@ -22,6 +28,10 @@ impl fmt::Display for Error {
                 f,
                 "Number of minimum shares must be less than or equal to number of shares."
             ),
+            #[cfg(feature = "experimental")]
+            Error::PredefinedSharesError => {
+                write!(f, "Predefined share has invalid size or duplicate x")
+            }
         }
     }
 }
@@ -45,7 +55,7 @@ pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, E
     if n == 0 {
         return Err(Error::ZeroSharesError);
     }
-    
+
     if k == 0 {
         return Err(Error::ZeroMinimumSharesError);
     }
@@ -111,7 +121,7 @@ pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, Error> {
     if shares.is_empty() {
         return Err(Error::ZeroSharesError);
     }
- 
+
     let mut secret = vec![0u8; shares[0].len() - 1];
 
     for i in 1..shares[0].len() {
@@ -152,12 +162,17 @@ pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, Error> {
 /// ```
 ///
 /// ```
-//#[cfg(feature = "experimental")]
-pub fn build_shares_predefined(secret: &[u8], pre_shares: Vec<Vec<u8>>, k: usize, n: usize) -> Result<Vec<Vec<u8>>, Error> {
+#[cfg(feature = "experimental")]
+pub fn build_shares_predefined(
+    secret: &[u8],
+    pre_shares: Vec<Vec<u8>>,
+    k: usize,
+    n: usize,
+) -> Result<Vec<Vec<u8>>, Error> {
     if n == 0 {
         return Err(Error::ZeroSharesError);
     }
-    
+
     if k == 0 {
         return Err(Error::ZeroMinimumSharesError);
     }
@@ -171,7 +186,18 @@ pub fn build_shares_predefined(secret: &[u8], pre_shares: Vec<Vec<u8>>, k: usize
     }
 
     if pre_shares.len() > 2 {
-        return Err(Error::ThresholdError);
+        return Err(Error::PredefinedSharesError);
+    }
+
+    let seen_elements: std::collections::HashSet<u8> = std::collections::HashSet::new();
+    for share in pre_shares.iter() {
+        if share.len() != secret.len() + 1 {
+            return Err(Error::PredefinedSharesError);
+        }
+
+        if seen_elements.contains(&share[0]) {
+            return Err(Error::PredefinedSharesError);
+        }
     }
 
     let mut shares = pre_shares.clone();
@@ -195,34 +221,57 @@ pub fn build_shares_predefined(secret: &[u8], pre_shares: Vec<Vec<u8>>, k: usize
 
     let ncoefs = shares.len();
     let npolys = shares[0].len() - 1;
-    
+
     // create polynomial for each byte
     let mut polys: Vec<Vec<GF256>> = vec![vec![GF256::ZERO; ncoefs]; npolys];
 
     for i in 1..shares[0].len() {
-        let mut polytemp = vec![GF256::ZERO; ncoefs];
+        let mut polystemp = vec![vec![GF256::ZERO; ncoefs]; ncoefs];
+        let mut k = 0;
         for share in shares.iter() {
-            let mut num = GF256::ONE;
+            let mut coeffs = vec![GF256::ONE];
             let mut denom = GF256::ONE;
             for share2 in shares.iter() {
                 if share[0] == share2[0] {
                     continue;
                 };
 
-                num *= GF256::from(share2[0]);
-                denom *= GF256::from(share2[0]) - GF256::from(share[0]);
+                let mut tempcoeffs = vec![GF256::ZERO; coeffs.len() + 1];
+                for j in 0..coeffs.len() {
+                    tempcoeffs[j] += coeffs[j] * GF256::from(share2[0]);
+                    tempcoeffs[j + 1] += coeffs[j];
+                }
+                coeffs = tempcoeffs;
+
+                denom *= GF256::from(share[0]) - GF256::from(share2[0]);
             }
 
-            polytemp[i-1] = num * denom.mul_inv();
+            //for j in 0..coeffs.len() {
+            for coeff in &mut coeffs {
+                *coeff *= denom.mul_inv();
+                *coeff *= GF256::from(share[i]);
+            }
+
+            polystemp[k] = coeffs;
+            k += 1;
         }
 
-        polys[i - 1] = polytemp;
+        let mut column_sums = vec![GF256::ZERO; polystemp[0].len()];
+
+        for row in polystemp {
+            for (i, &element) in row.iter().enumerate() {
+                column_sums[i] += element;
+            }
+        }
+
+        polys[i - 1] = column_sums;
     }
 
     let shares_left = n - pre_shares.len();
     let mut new_shares: Vec<Vec<u8>> = vec![vec![0u8; 0]; shares_left];
 
-    let random_bytes = random_no_zero_distinct_set_with_preset(shares_left, shares.iter().map(|x| x[0]).collect());
+    let random_bytes =
+        random_no_zero_distinct_set_with_preset(shares_left, shares.iter().map(|x| x[0]).collect());
     for (i, share) in new_shares.iter_mut().enumerate() {
         share.push(random_bytes[i]);
 
@@ -238,7 +287,11 @@ pub fn build_shares_predefined(secret: &[u8], pre_shares: Vec<Vec<u8>>, k: usize
         }
     }
 
-    Ok(new_shares)
+    let mut all_shares = Vec::new();
+    all_shares.append(&mut pre_shares.clone());
+    all_shares.append(&mut new_shares);
+
+    Ok(all_shares)
 }
 
 #[cfg(test)]
@@ -255,6 +308,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "experimental")]
     #[test]
     fn test_build_shares_predefined() {
         // Define inputs
@@ -282,19 +336,23 @@ mod tests {
         // Assertions
         match result {
             Ok(shares) => {
-                assert_eq!(shares.len(), n - 2); // Number of shares matches k - 2
+                assert_eq!(shares.len(), 5); // Number of shares matches n
                 for share in shares.iter() {
                     assert_eq!(share.len(), secret.len() + 1); // Each share has length of secret + 1
                 }
 
                 let shareset1 = shares.clone();
-                assert_eq!(rebuild_secret(shareset1).unwrap(), "Hello".as_bytes().to_vec()); 
+                assert_eq!(
+                    rebuild_secret(shareset1[..3].to_vec()).unwrap(),
+                    "Hello".as_bytes().to_vec()
+                );
 
-                // Print shares
-                println!("Shares generated:");
-                for share in shares.iter() {
-                    println!("{:?}", share);
-                }
+                let shareset2 = shares.clone();
+
+                assert_eq!(
+                    rebuild_secret(shareset2[1..4].to_vec()).unwrap(),
+                    "Hello".as_bytes().to_vec()
+                );
             }
             Err(e) => panic!("Error occurred: {:?}", e),
         }

@@ -12,6 +12,8 @@ pub enum ErrorBip {
     ZeroSharesError,
     ZeroMinimumSharesError,
     ThresholdError,
+    #[cfg(feature = "experimental")]
+    PredefinedSharesError,
     MnemonicError,
 }
 
@@ -21,6 +23,8 @@ pub enum ErrorBipAead {
     ZeroSharesError,
     ZeroMinimumSharesError,
     ThresholdError,
+    #[cfg(feature = "experimental")]
+    PredefinedSharesError,
     KeyLengthError,
     EncryptionError,
     DecryptionError,
@@ -37,6 +41,10 @@ impl fmt::Display for ErrorBip {
                 "Number of minimum shares must be less than or equal to number of shares."
             ),
             ErrorBip::MnemonicError => write!(f, "Error parsing Mnemonic."),
+            #[cfg(feature = "experimental")]
+            ErrorBip::PredefinedSharesError => {
+                write!(f, "Predefined share has invalid size or duplicate x")
+            }
         }
     }
 }
@@ -47,6 +55,8 @@ impl From<base::Error> for ErrorBip {
             base::Error::ZeroSharesError => ErrorBip::ZeroSharesError,
             base::Error::ZeroMinimumSharesError => ErrorBip::ZeroMinimumSharesError,
             base::Error::ThresholdError => ErrorBip::ThresholdError,
+            #[cfg(feature = "experimental")]
+            base::Error::PredefinedSharesError => ErrorBip::PredefinedSharesError,
         }
     }
 }
@@ -66,6 +76,10 @@ impl fmt::Display for ErrorBipAead {
             ErrorBipAead::EncryptionError => write!(f, "Error Encrypting Secret."),
             ErrorBipAead::DecryptionError => write!(f, "Error Decrypting Secret."),
             ErrorBipAead::MnemonicError => write!(f, "Error parsing Mnemonic."),
+            #[cfg(feature = "experimental")]
+            ErrorBipAead::PredefinedSharesError => {
+                write!(f, "Predefined share has invalid size or duplicate x")
+            }
         }
     }
 }
@@ -79,6 +93,8 @@ impl From<aead::ErrorAead> for ErrorBipAead {
             aead::ErrorAead::KeyLengthError => ErrorBipAead::KeyLengthError,
             aead::ErrorAead::EncryptionError => ErrorBipAead::EncryptionError,
             aead::ErrorAead::DecryptionError => ErrorBipAead::DecryptionError,
+            #[cfg(feature = "experimental")]
+            aead::ErrorAead::PredefinedSharesError => ErrorBipAead::PredefinedSharesError,
         }
     }
 }
@@ -211,9 +227,80 @@ pub fn rebuild_secret_aead(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorBipAead
     Ok(m.to_string().into_bytes())
 }
 
+/// Explanation
+///
+/// # Arguments
+///
+/// * `p1` - A point in 2D space.
+///
+/// # Returns
+///
+/// * A float representing the distance.
+///
+/// # Example
+///
+/// ```
+///
+/// ```
+#[cfg(feature = "experimental")]
+pub fn build_shares_predefined(
+    secret: &[u8],
+    pre_shares: Vec<Vec<u8>>,
+    k: usize,
+    n: usize,
+) -> Result<Vec<Vec<u8>>, ErrorBip> {
+    let m = match verify_mnemonic(secret) {
+        Ok(m) => m,
+        Err(_) => return Err(ErrorBip::MnemonicError),
+    };
+
+    let shares = match base::build_shares_predefined(&m.to_entropy(), pre_shares, k, n) {
+        Ok(shares) => shares,
+        Err(e) => return Err(e.into()),
+    };
+
+    Ok(shares)
+}
+
+/// Explanation
+///
+/// # Arguments
+///
+/// * `p1` - A point in 2D space.
+///
+/// # Returns
+///
+/// * A float representing the distance.
+///
+/// # Example
+///
+/// ```
+///
+/// ```
+#[cfg(feature = "experimental")]
+pub fn build_shares_aead_predefined(
+    secret: &[u8],
+    pre_shares: Vec<Vec<u8>>,
+    k: usize,
+    n: usize,
+) -> Result<Vec<Vec<u8>>, ErrorBipAead> {
+    let m = match verify_mnemonic(secret) {
+        Ok(m) => m,
+        Err(_) => return Err(ErrorBipAead::MnemonicError),
+    };
+
+    let shares = match aead::build_shares_predefined(&m.to_entropy(), pre_shares, k, n) {
+        Ok(shares) => shares,
+        Err(e) => return Err(e.into()),
+    };
+
+    Ok(shares)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand_core::{OsRng, RngCore};
 
     const TEST_MNEMONIC: &str = "hundred match learn goddess figure filter zone grocery step tuition manual marriage polar spice inquiry";
 
@@ -232,5 +319,52 @@ mod tests {
             rebuild_secret_aead(build_shares_aead(TEST_MNEMONIC.as_bytes(), 3, 5).unwrap())
                 .unwrap()
         );
+    }
+
+    #[cfg(feature = "experimental")]
+    #[test]
+    fn test_build_shares_predefined() {
+        // Define inputs
+        let secret = TEST_MNEMONIC.as_bytes();
+        let mut pre_shares: Vec<Vec<u8>> = Vec::new();
+
+        for _ in 0..2 {
+            let mut share = vec![0u8; 20 + 1];
+            loop {
+                OsRng.fill_bytes(&mut share);
+                if share[0] == 0 || pre_shares.iter().any(|s| s[0] == share[0]) {
+                    continue;
+                }
+                break;
+            }
+            pre_shares.push(share);
+        }
+
+        let k = 3;
+        let n = 5;
+
+        // Call the function
+        let result = build_shares_predefined(secret, pre_shares.clone(), k, n);
+
+        // Assertions
+        match result {
+            Ok(shares) => {
+                assert_eq!(shares.len(), 5); // Number of shares matches n
+
+                let shareset1 = shares.clone();
+                assert_eq!(
+                    rebuild_secret(shareset1[..3].to_vec()).unwrap(),
+                    TEST_MNEMONIC.as_bytes().to_vec()
+                );
+
+                let shareset2 = shares.clone();
+
+                assert_eq!(
+                    rebuild_secret(shareset2[1..4].to_vec()).unwrap(),
+                    TEST_MNEMONIC.as_bytes().to_vec()
+                );
+            }
+            Err(e) => panic!("Error occurred: {:?}", e),
+        }
     }
 }
