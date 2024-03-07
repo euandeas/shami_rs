@@ -300,6 +300,7 @@ pub fn build_shares_aead_predefined(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "experimental")]
     use rand_core::{OsRng, RngCore};
 
     const TEST_MNEMONIC: &str = "hundred match learn goddess figure filter zone grocery step tuition manual marriage polar spice inquiry";

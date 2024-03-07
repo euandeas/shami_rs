@@ -19,6 +19,7 @@ pub fn random_no_zero_distinct_set(k: usize) -> Vec<u8> {
     out_map.into_iter().collect::<Vec<u8>>()
 }
 
+#[cfg(feature = "experimental")]
 pub fn random_no_zero_distinct_set_with_preset(k: usize, v: Vec<u8>) -> Vec<u8> {
     let mut out_map = HashSet::new();
 
@@ -52,6 +53,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "experimental")]
     #[test]
     fn test_random_no_zero_distinct_set_with_preset() {
         let result = random_no_zero_distinct_set_with_preset(10, vec![1, 2, 3, 4, 5]);

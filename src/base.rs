@@ -4,10 +4,10 @@ use std::fmt;
 #[cfg(feature = "experimental")]
 use rand_core::{OsRng, RngCore};
 
-use crate::{
-    gf256::GF256,
-    random::{random_no_zero_distinct_set, random_no_zero_distinct_set_with_preset},
-};
+#[cfg(feature = "experimental")]
+use crate::random::random_no_zero_distinct_set_with_preset;
+
+use crate::{gf256::GF256, random::random_no_zero_distinct_set};
 
 ///
 #[derive(Debug)]

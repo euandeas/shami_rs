@@ -173,6 +173,7 @@ pub fn build_shares_predefined(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "experimental")]
     use rand_core::{OsRng, RngCore};
 
     #[test]
