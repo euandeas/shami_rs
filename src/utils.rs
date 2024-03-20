@@ -1,3 +1,4 @@
+use block_padding::{Pkcs7, RawPadding};
 use rand_core::{OsRng, RngCore};
 use std::collections::HashSet;
 
@@ -33,6 +34,23 @@ pub fn random_no_zero_distinct_set_with_preset(k: usize, v: Vec<u8>) -> Vec<u8> 
     out_map.into_iter().collect::<Vec<u8>>()
 }
 
+pub fn pkcs7_pad(msg: &[u8]) -> Vec<u8> {
+    let len = msg.len();
+    let block_len = (len + 31) / 32 * 32 - 1;
+
+    let mut block = vec![0; block_len];
+    block[..len].copy_from_slice(msg);
+    Pkcs7::raw_pad(block.as_mut_slice(), len);
+    block
+}
+
+pub fn pkcs7_unpad(input: Vec<u8>) -> Vec<u8> {
+    match Pkcs7::raw_unpad(input.as_slice()) {
+        Ok(v) => v.to_vec(),
+        Err(_) => input.to_vec(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -51,6 +69,23 @@ mod tests {
             let set: HashSet<_> = result.iter().collect();
             assert_eq!(result.len(), set.len());
         }
+    }
+
+    #[test]
+    fn test_pad() {
+        let result = pkcs7_pad("YELLOW SUBMARINE".as_bytes());
+        assert_eq!(
+            result.as_slice(),
+            b"YELLOW SUBMARINE\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f"
+        );
+        assert_eq!(
+            "YELLOW SUBMARINE",
+            String::from_utf8_lossy(pkcs7_unpad(result).as_slice())
+        );
+        assert_eq!(
+            "YELLOW SUBMARINE",
+            String::from_utf8_lossy(pkcs7_unpad("YELLOW SUBMARINE".as_bytes().to_vec()).as_slice())
+        );
     }
 
     #[cfg(feature = "experimental")]

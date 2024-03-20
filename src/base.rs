@@ -1,13 +1,14 @@
 //! Provides base Shamir's Secret Sharing functionality.
+use crate::utils::{pkcs7_pad, pkcs7_unpad};
 use std::fmt;
 
 #[cfg(feature = "experimental")]
 use rand_core::{OsRng, RngCore};
 
 #[cfg(feature = "experimental")]
-use crate::random::random_no_zero_distinct_set_with_preset;
+use crate::utils::random_no_zero_distinct_set_with_preset;
 
-use crate::{gf256::GF256, random::random_no_zero_distinct_set};
+use crate::{gf256::GF256, utils::random_no_zero_distinct_set};
 
 ///
 #[derive(Debug)]
@@ -117,6 +118,27 @@ pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, E
 /// ```
 ///
 /// ```
+pub fn build_shares_pad(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, Error> {
+    let padded_secret = pkcs7_pad(secret);
+
+    build_shares(padded_secret.as_slice(), k, n)
+}
+
+/// Explanation
+///
+/// # Arguments
+///
+/// * `p1` - A point in 2D space.
+///
+/// # Returns
+///
+/// * A float representing the distance.
+///
+/// # Example
+///
+/// ```
+///
+/// ```
 pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, Error> {
     if shares.is_empty() {
         return Err(Error::ZeroSharesError);
@@ -144,7 +166,7 @@ pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, Error> {
         secret[i - 1] = secret_temp.as_u8();
     }
 
-    Ok(secret)
+    Ok(pkcs7_unpad(secret))
 }
 
 /// Explanation
@@ -281,6 +303,33 @@ pub fn build_shares_predefined(
     Ok(all_shares)
 }
 
+/// Explanation
+///
+/// # Arguments
+///
+/// * `p1` - A point in 2D space.
+///
+/// # Returns
+///
+/// * A float representing the distance.
+///
+/// # Example
+///
+/// ```
+///
+/// ```
+#[cfg(feature = "experimental")]
+pub fn build_shares_predefined_pad(
+    secret: &[u8],
+    pre_shares: Vec<Vec<u8>>,
+    k: usize,
+    n: usize,
+) -> Result<Vec<Vec<u8>>, Error> {
+    let padded_secret = pkcs7_pad(secret);
+
+    build_shares_predefined(padded_secret.as_bytes(), pre_shares, k, n)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -293,6 +342,14 @@ mod tests {
                 rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5).unwrap()).unwrap()
             );
         }
+    }
+
+    #[test]
+    fn test_shamirs_pad() {
+        assert_eq!(
+            "Hello! Testing!".as_bytes().to_vec(),
+            rebuild_secret(build_shares_pad("Hello! Testing!".as_bytes(), 3, 5).unwrap()).unwrap()
+        );
     }
 
     #[cfg(feature = "experimental")]

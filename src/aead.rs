@@ -1,4 +1,5 @@
 //! Provides Shamir's Secret Sharing functionality with XChaCha20Poly1305 wrapper.
+use crate::utils::{pkcs7_pad, pkcs7_unpad};
 use std::fmt;
 
 use chacha20poly1305::{
@@ -103,6 +104,27 @@ pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, E
 /// ```
 ///
 /// ```
+pub fn build_shares_pad(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, ErrorAead> {
+    let padded_secret = pkcs7_pad(secret);
+
+    build_shares(padded_secret.as_slice(), k, n)
+}
+
+/// Explanation
+///
+/// # Arguments
+///
+/// * `p1` - A point in 2D space.
+///
+/// # Returns
+///
+/// * A float representing the distance.
+///
+/// # Example
+///
+/// ```
+///
+/// ```
 pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorAead> {
     let mut keys = Vec::new();
     for share in &shares {
@@ -126,7 +148,7 @@ pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorAead> {
         Err(_) => return Err(ErrorAead::DecryptionError),
     };
 
-    Ok(plaintext)
+    Ok(pkcs7_unpad(plaintext))
 }
 
 /// Explanation
@@ -181,6 +203,14 @@ mod tests {
         assert_eq!(
             "Hello! Testing!".as_bytes().to_vec(),
             rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5).unwrap()).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_aeadwrapper_pad() {
+        assert_eq!(
+            "Hello! Testing!".as_bytes().to_vec(),
+            rebuild_secret(build_shares_pad("Hello! Testing!".as_bytes(), 3, 5).unwrap()).unwrap()
         );
     }
 

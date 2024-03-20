@@ -5,6 +5,7 @@ use bip39::Mnemonic;
 
 use crate::aead;
 use crate::base;
+use crate::utils::pkcs7_pad;
 
 ///
 #[derive(Debug)]
@@ -155,6 +156,39 @@ pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, E
 /// ```
 ///
 /// ```
+pub fn build_shares_pad(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, ErrorBip> {
+    let m = match verify_mnemonic(secret) {
+        Ok(m) => m,
+        Err(_) => return Err(ErrorBip::MnemonicError),
+    };
+
+    println!("{:?}", m.to_entropy());
+    let padded_secret = pkcs7_pad(m.to_entropy().as_slice());
+    println!("{:?}", padded_secret);
+
+    let shares = match base::build_shares(padded_secret.as_slice(), k, n) {
+        Ok(shares) => shares,
+        Err(e) => return Err(e.into()),
+    };
+
+    Ok(shares)
+}
+
+/// Explanation
+///
+/// # Arguments
+///
+/// * `p1` - A point in 2D space.
+///
+/// # Returns
+///
+/// * A float representing the distance.
+///
+/// # Example
+///
+/// ```
+///
+/// ```
 pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorBip> {
     let secret = match base::rebuild_secret(shares) {
         Ok(secret) => secret,
@@ -191,6 +225,41 @@ pub fn build_shares_aead(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8
     };
 
     let shares = match aead::build_shares(&m.to_entropy(), k, n) {
+        Ok(shares) => shares,
+        Err(e) => return Err(e.into()),
+    };
+
+    Ok(shares)
+}
+
+/// Explanation
+///
+/// # Arguments
+///
+/// * `p1` - A point in 2D space.
+///
+/// # Returns
+///
+/// * A float representing the distance.
+///
+/// # Example
+///
+/// ```
+///
+/// ```
+pub fn build_shares_aead_pad(
+    secret: &[u8],
+    k: usize,
+    n: usize,
+) -> Result<Vec<Vec<u8>>, ErrorBipAead> {
+    let m = match verify_mnemonic(secret) {
+        Ok(m) => m,
+        Err(_) => return Err(ErrorBipAead::MnemonicError),
+    };
+
+    let padded_secret = pkcs7_pad(&m.to_entropy());
+
+    let shares = match aead::build_shares(padded_secret.as_slice(), k, n) {
         Ok(shares) => shares,
         Err(e) => return Err(e.into()),
     };
@@ -314,10 +383,27 @@ mod tests {
     }
 
     #[test]
+    fn test_bip_pad() {
+        assert_eq!(
+            TEST_MNEMONIC.as_bytes().to_vec(),
+            rebuild_secret(build_shares_pad(TEST_MNEMONIC.as_bytes(), 3, 5).unwrap()).unwrap()
+        );
+    }
+
+    #[test]
     fn test_bip_aead() {
         assert_eq!(
             TEST_MNEMONIC.as_bytes().to_vec(),
             rebuild_secret_aead(build_shares_aead(TEST_MNEMONIC.as_bytes(), 3, 5).unwrap())
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_bip_aead_pad() {
+        assert_eq!(
+            TEST_MNEMONIC.as_bytes().to_vec(),
+            rebuild_secret_aead(build_shares_aead_pad(TEST_MNEMONIC.as_bytes(), 3, 5).unwrap())
                 .unwrap()
         );
     }
