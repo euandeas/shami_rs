@@ -52,7 +52,7 @@ impl fmt::Display for Error {
 /// ```
 ///
 /// ```
-pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, Error> {
+pub fn build_shares(secret: &[u8], k: usize, n: usize, pad: bool) -> Result<Vec<Vec<u8>>, Error> {
     if n == 0 {
         return Err(Error::ZeroSharesError);
     }
@@ -65,8 +65,14 @@ pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, E
         return Err(Error::ThresholdError);
     }
 
+    let mut setsecret: Vec<u8> = secret.to_vec();
+
+    if pad {
+        setsecret = pkcs7_pad(secret);
+    }
+
     // create polynomial for each byte
-    let polys: Vec<Vec<GF256>> = secret
+    let polys: Vec<Vec<GF256>> = setsecret
         .iter()
         .enumerate()
         .map(|(_, byte)| {
@@ -101,27 +107,6 @@ pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, E
     }
 
     Ok(shares)
-}
-
-/// Explanation
-///
-/// # Arguments
-///
-/// * `p1` - A point in 2D space.
-///
-/// # Returns
-///
-/// * A float representing the distance.
-///
-/// # Example
-///
-/// ```
-///
-/// ```
-pub fn build_shares_pad(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, Error> {
-    let padded_secret = pkcs7_pad(secret);
-
-    build_shares(padded_secret.as_slice(), k, n)
 }
 
 /// Explanation
@@ -190,6 +175,7 @@ pub fn build_shares_predefined(
     pre_shares: Vec<Vec<u8>>,
     k: usize,
     n: usize,
+    pad: bool,
 ) -> Result<Vec<Vec<u8>>, Error> {
     if n == 0 {
         return Err(Error::ZeroSharesError);
@@ -211,9 +197,15 @@ pub fn build_shares_predefined(
         return Err(Error::PredefinedSharesError);
     }
 
+    let mut setsecret: Vec<u8> = secret.to_vec();
+
+    if pad {
+        setsecret = pkcs7_pad(secret);
+    }
+
     let seen_elements: std::collections::HashSet<u8> = std::collections::HashSet::new();
     for share in pre_shares.iter() {
-        if share.len() != secret.len() + 1 {
+        if share.len() != setsecret.len() + 1 {
             return Err(Error::PredefinedSharesError);
         }
 
@@ -223,9 +215,9 @@ pub fn build_shares_predefined(
     }
 
     let mut shares = pre_shares.clone();
-    let mut sshare = vec![0u8; secret.len() + 1];
+    let mut sshare = vec![0u8; setsecret.len() + 1];
     sshare[0] = 0;
-    sshare[1..].copy_from_slice(secret);
+    sshare[1..].copy_from_slice(setsecret.as_slice());
     shares.push(sshare);
 
     // GENERATE EXTRA RANDOM SHARES TO MATCH K
@@ -303,33 +295,6 @@ pub fn build_shares_predefined(
     Ok(all_shares)
 }
 
-/// Explanation
-///
-/// # Arguments
-///
-/// * `p1` - A point in 2D space.
-///
-/// # Returns
-///
-/// * A float representing the distance.
-///
-/// # Example
-///
-/// ```
-///
-/// ```
-#[cfg(feature = "experimental")]
-pub fn build_shares_predefined_pad(
-    secret: &[u8],
-    pre_shares: Vec<Vec<u8>>,
-    k: usize,
-    n: usize,
-) -> Result<Vec<Vec<u8>>, Error> {
-    let padded_secret = pkcs7_pad(secret);
-
-    build_shares_predefined(padded_secret.as_bytes(), pre_shares, k, n)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -339,7 +304,7 @@ mod tests {
         for _ in 0..1000 {
             assert_eq!(
                 "Hello! Testing!".as_bytes().to_vec(),
-                rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5).unwrap()).unwrap()
+                rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5, false).unwrap()).unwrap()
             );
         }
     }
@@ -348,7 +313,7 @@ mod tests {
     fn test_shamirs_pad() {
         assert_eq!(
             "Hello! Testing!".as_bytes().to_vec(),
-            rebuild_secret(build_shares_pad("Hello! Testing!".as_bytes(), 3, 5).unwrap()).unwrap()
+            rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5, true).unwrap()).unwrap()
         );
     }
 
@@ -375,7 +340,7 @@ mod tests {
         let n = 5;
 
         // Call the function
-        let result = build_shares_predefined(secret, pre_shares.clone(), k, n);
+        let result = build_shares_predefined(secret, pre_shares.clone(), k, n, false);
 
         // Assertions
         match result {

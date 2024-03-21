@@ -69,15 +69,21 @@ impl From<base::Error> for ErrorAead {
 /// ```
 ///
 /// ```
-pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, ErrorAead> {
+pub fn build_shares(secret: &[u8], k: usize, n: usize, pad: bool) -> Result<Vec<Vec<u8>>, ErrorAead> {
+    let mut setsecret: Vec<u8> = secret.to_vec();
+
+    if pad {
+        setsecret = pkcs7_pad(secret);
+    }
+    
     let key = XChaCha20Poly1305::generate_key(&mut OsRng);
     let cipher = XChaCha20Poly1305::new(&key);
-    let ciphertext = match cipher.encrypt(XNonce::from_slice(&[0; 24]), secret) {
+    let ciphertext = match cipher.encrypt(XNonce::from_slice(&[0; 24]), setsecret.as_slice()) {
         Ok(ciphertext) => ciphertext,
         Err(_) => return Err(ErrorAead::EncryptionError),
     };
 
-    let mut shares = match base::build_shares(&key, k, n) {
+    let mut shares = match base::build_shares(&key, k, n, false) {
         Ok(shares) => shares,
         Err(e) => return Err(e.into()),
     };
@@ -87,27 +93,6 @@ pub fn build_shares(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, E
     }
 
     Ok(shares)
-}
-
-/// Explanation
-///
-/// # Arguments
-///
-/// * `p1` - A point in 2D space.
-///
-/// # Returns
-///
-/// * A float representing the distance.
-///
-/// # Example
-///
-/// ```
-///
-/// ```
-pub fn build_shares_pad(secret: &[u8], k: usize, n: usize) -> Result<Vec<Vec<u8>>, ErrorAead> {
-    let padded_secret = pkcs7_pad(secret);
-
-    build_shares(padded_secret.as_slice(), k, n)
 }
 
 /// Explanation
@@ -172,15 +157,22 @@ pub fn build_shares_predefined(
     pre_shares: Vec<Vec<u8>>,
     k: usize,
     n: usize,
+    pad: bool,
 ) -> Result<Vec<Vec<u8>>, ErrorAead> {
+    let mut setsecret: Vec<u8> = secret.to_vec();
+
+    if pad {
+        setsecret = pkcs7_pad(secret);
+    }
+
     let key = XChaCha20Poly1305::generate_key(&mut OsRng);
     let cipher = XChaCha20Poly1305::new(&key);
-    let ciphertext = match cipher.encrypt(XNonce::from_slice(&[0; 24]), secret) {
+    let ciphertext = match cipher.encrypt(XNonce::from_slice(&[0; 24]), setsecret.as_slice()) {
         Ok(ciphertext) => ciphertext,
         Err(_) => return Err(ErrorAead::EncryptionError),
     };
 
-    let mut shares = match base::build_shares_predefined(&key, pre_shares, k, n) {
+    let mut shares = match base::build_shares_predefined(&key, pre_shares, k, n, false) {
         Ok(shares) => shares,
         Err(e) => return Err(e.into()),
     };
@@ -202,7 +194,7 @@ mod tests {
     fn test_aeadwrapper_simple() {
         assert_eq!(
             "Hello! Testing!".as_bytes().to_vec(),
-            rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5).unwrap()).unwrap()
+            rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5, false).unwrap()).unwrap()
         );
     }
 
@@ -210,7 +202,7 @@ mod tests {
     fn test_aeadwrapper_pad() {
         assert_eq!(
             "Hello! Testing!".as_bytes().to_vec(),
-            rebuild_secret(build_shares_pad("Hello! Testing!".as_bytes(), 3, 5).unwrap()).unwrap()
+            rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5, true).unwrap()).unwrap()
         );
     }
 
@@ -237,7 +229,7 @@ mod tests {
         let n = 5;
 
         // Call the function
-        let result = build_shares_predefined(secret, pre_shares.clone(), k, n);
+        let result = build_shares_predefined(secret, pre_shares.clone(), k, n, false);
 
         // Assertions
         match result {
