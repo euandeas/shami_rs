@@ -222,7 +222,7 @@ pub fn build_shares_predefined(
 
     // GENERATE EXTRA RANDOM SHARES TO MATCH K
     for _ in 0..(k - pre_shares.len() - 1) {
-        let mut share = vec![0u8; secret.len() + 1];
+        let mut share = vec![0u8; setsecret.len() + 1];
         loop {
             OsRng.fill_bytes(&mut share);
             if share[0] == 0 || shares.iter().any(|s| s[0] == share[0]) {
