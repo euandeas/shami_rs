@@ -36,9 +36,18 @@ pub fn random_no_zero_distinct_set_with_preset(k: usize, v: Vec<u8>) -> Vec<u8> 
 
 pub fn pkcs7_pad(msg: &[u8]) -> Vec<u8> {
     let len = msg.len();
-    let block_len = (len + 31) / 32 * 32 - 1;
+    let block_len = (len + 7) / 8 * 8;
 
-    let mut block = vec![0; block_len];
+    let mut pad_len = block_len - 1;
+
+    if pad_len < len {
+        pad_len = block_len + 7;
+    }
+    else if pad_len == len {
+        pad_len = block_len + 8;
+    }
+
+    let mut block = vec![0; pad_len];
     block[..len].copy_from_slice(msg);
     Pkcs7::raw_pad(block.as_mut_slice(), len);
     block
@@ -74,9 +83,14 @@ mod tests {
     #[test]
     fn test_pad() {
         let result = pkcs7_pad("YELLOW SUBMARINE".as_bytes());
+        let result2 = pkcs7_pad("YELLOW SUBMARINE!".as_bytes());
         assert_eq!(
             result.as_slice(),
-            b"YELLOW SUBMARINE\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f"
+            b"YELLOW SUBMARINE\x07\x07\x07\x07\x07\x07\x07"
+        );
+        assert_eq!(
+            result2.as_slice(),
+            b"YELLOW SUBMARINE!\x06\x06\x06\x06\x06\x06"
         );
         assert_eq!(
             "YELLOW SUBMARINE",
