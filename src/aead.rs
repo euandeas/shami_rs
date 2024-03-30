@@ -138,7 +138,7 @@ pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorAead> {
         Err(_) => return Err(ErrorAead::DecryptionError),
     };
 
-    if (plaintext.len() % 8 == 7) {
+    if plaintext.len() % 8 == 7 {
         Ok(pkcs7_unpad(plaintext))
     } else {
         Ok(plaintext)

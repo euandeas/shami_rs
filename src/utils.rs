@@ -36,14 +36,15 @@ pub fn random_no_zero_distinct_set_with_preset(k: usize, v: Vec<u8>) -> Vec<u8> 
 
 pub fn pkcs7_pad(msg: &[u8]) -> Vec<u8> {
     let len = msg.len();
-    let block_len = (len + 7) / 8 * 8;
 
-    let mut pad_len = block_len - 1;
+    if len % 8 == 7 {
+        return msg.to_vec();
+    }
+
+    let mut pad_len = ((len + 7) / 8 * 8) - 1;
 
     if pad_len < len {
-        pad_len = block_len + 7;
-    } else if pad_len == len {
-        pad_len = block_len + 8;
+        pad_len += 8;
     }
 
     let mut block = vec![0; pad_len];
