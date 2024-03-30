@@ -126,7 +126,12 @@ fn verify_mnemonic(secret: &[u8]) -> Result<Mnemonic, ()> {
 /// ```
 ///
 /// ```
-pub fn build_shares(secret: &[u8], k: usize, n: usize, pad: bool) -> Result<Vec<Vec<u8>>, ErrorBip> {
+pub fn build_shares(
+    secret: &[u8],
+    k: usize,
+    n: usize,
+    pad: bool,
+) -> Result<Vec<Vec<u8>>, ErrorBip> {
     let m = match verify_mnemonic(secret) {
         Ok(m) => m,
         Err(_) => return Err(ErrorBip::MnemonicError),
@@ -184,7 +189,12 @@ pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorBip> {
 /// ```
 ///
 /// ```
-pub fn build_shares_aead(secret: &[u8], k: usize, n: usize, pad: bool) -> Result<Vec<Vec<u8>>, ErrorBipAead> {
+pub fn build_shares_aead(
+    secret: &[u8],
+    k: usize,
+    n: usize,
+    pad: bool,
+) -> Result<Vec<Vec<u8>>, ErrorBipAead> {
     let m = match verify_mnemonic(secret) {
         Ok(m) => m,
         Err(_) => return Err(ErrorBipAead::MnemonicError),

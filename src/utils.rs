@@ -42,8 +42,7 @@ pub fn pkcs7_pad(msg: &[u8]) -> Vec<u8> {
 
     if pad_len < len {
         pad_len = block_len + 7;
-    }
-    else if pad_len == len {
+    } else if pad_len == len {
         pad_len = block_len + 8;
     }
 

@@ -151,7 +151,11 @@ pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, Error> {
         secret[i - 1] = secret_temp.as_u8();
     }
 
-    Ok(pkcs7_unpad(secret))
+    if secret.len() % 8 == 7 {
+        Ok(pkcs7_unpad(secret))
+    } else {
+        Ok(secret)
+    }
 }
 
 /// Explanation
@@ -222,7 +226,7 @@ pub fn build_shares_predefined(
 
     // GENERATE EXTRA RANDOM SHARES TO MATCH K
     for _ in 0..(k - pre_shares.len() - 1) {
-        let mut share = vec![0u8; setsecret.len() + 1];
+        let mut share = vec![0u8; secret.len() + 1];
         loop {
             OsRng.fill_bytes(&mut share);
             if share[0] == 0 || shares.iter().any(|s| s[0] == share[0]) {
@@ -304,7 +308,8 @@ mod tests {
         for _ in 0..1000 {
             assert_eq!(
                 "Hello! Testing!".as_bytes().to_vec(),
-                rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5, false).unwrap()).unwrap()
+                rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5, false).unwrap())
+                    .unwrap()
             );
         }
     }
@@ -313,7 +318,8 @@ mod tests {
     fn test_shamirs_pad() {
         assert_eq!(
             "Hello! Testing!".as_bytes().to_vec(),
-            rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5, true).unwrap()).unwrap()
+            rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5, true).unwrap())
+                .unwrap()
         );
     }
 

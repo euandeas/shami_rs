@@ -69,13 +69,18 @@ impl From<base::Error> for ErrorAead {
 /// ```
 ///
 /// ```
-pub fn build_shares(secret: &[u8], k: usize, n: usize, pad: bool) -> Result<Vec<Vec<u8>>, ErrorAead> {
+pub fn build_shares(
+    secret: &[u8],
+    k: usize,
+    n: usize,
+    pad: bool,
+) -> Result<Vec<Vec<u8>>, ErrorAead> {
     let mut setsecret: Vec<u8> = secret.to_vec();
 
     if pad {
         setsecret = pkcs7_pad(secret);
     }
-    
+
     let key = XChaCha20Poly1305::generate_key(&mut OsRng);
     let cipher = XChaCha20Poly1305::new(&key);
     let ciphertext = match cipher.encrypt(XNonce::from_slice(&[0; 24]), setsecret.as_slice()) {
@@ -133,7 +138,11 @@ pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorAead> {
         Err(_) => return Err(ErrorAead::DecryptionError),
     };
 
-    Ok(pkcs7_unpad(plaintext))
+    if (plaintext.len() % 8 == 7) {
+        Ok(pkcs7_unpad(plaintext))
+    } else {
+        Ok(plaintext)
+    }
 }
 
 /// Explanation
@@ -194,7 +203,8 @@ mod tests {
     fn test_aeadwrapper_simple() {
         assert_eq!(
             "Hello! Testing!".as_bytes().to_vec(),
-            rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5, false).unwrap()).unwrap()
+            rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5, false).unwrap())
+                .unwrap()
         );
     }
 
@@ -202,7 +212,8 @@ mod tests {
     fn test_aeadwrapper_pad() {
         assert_eq!(
             "Hello! Testing!".as_bytes().to_vec(),
-            rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5, true).unwrap()).unwrap()
+            rebuild_secret(build_shares("Hello! Testing!".as_bytes(), 3, 5, true).unwrap())
+                .unwrap()
         );
     }
 
