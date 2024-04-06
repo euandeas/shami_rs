@@ -373,6 +373,7 @@ mod tests {
         }
     }
 }
+
 /*
 
 ALTERNATIVE IMPLEMENTATION
