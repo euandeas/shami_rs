@@ -8,7 +8,7 @@ use rand_core::{OsRng, RngCore};
 #[cfg(feature = "experimental")]
 use crate::utils::random_no_zero_distinct_set_with_preset;
 
-use crate::{gf256::GF256, utils::random_no_zero_distinct_set};
+use crate::{gf256::GF256, utils::{random_no_zero_distinct_set, random_no_zero_set}};
 
 ///
 #[derive(Debug)]
@@ -79,7 +79,7 @@ pub fn build_shares(secret: &[u8], k: usize, n: usize, pad: bool) -> Result<Vec<
             let mut row: Vec<GF256> = vec![GF256::ZERO; k];
             row[0] = GF256::from(*byte);
 
-            let random_bytes = random_no_zero_distinct_set(k - 1);
+            let random_bytes = random_no_zero_set(k - 1);
             for i in 1..k {
                 row[i] = GF256::from(random_bytes[i - 1]);
             }
@@ -277,6 +277,7 @@ pub fn build_shares_predefined(
         n - pre_shares.len(),
         shares.iter().map(|x| x[0]).collect(),
     );
+
     for (i, share) in new_shares.iter_mut().enumerate() {
         share.push(random_bytes[i]);
 

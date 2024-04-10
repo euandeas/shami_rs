@@ -11,6 +11,15 @@ fn random_no_zero() -> u8 {
     rnd
 }
 
+pub fn random_no_zero_set(k: usize) -> Vec<u8> {
+    let mut out = vec![0u8, 0];
+    while out.len() < k {
+        out.push(random_no_zero());
+    }
+
+    out
+}
+
 pub fn random_no_zero_distinct_set(k: usize) -> Vec<u8> {
     let mut out_map = HashSet::new();
     while out_map.len() < k {
