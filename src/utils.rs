@@ -2,6 +2,7 @@ use block_padding::{Pkcs7, RawPadding};
 use rand_core::{OsRng, RngCore};
 use std::collections::HashSet;
 
+// Generate a random u8 that is not zero
 fn random_no_zero() -> u8 {
     let mut rnd = OsRng.next_u64() as u8;
     while rnd == 0 {
@@ -11,6 +12,7 @@ fn random_no_zero() -> u8 {
     rnd
 }
 
+// Generate a set of k random u8 that are not zero
 pub fn random_no_zero_set(k: usize) -> Vec<u8> {
     let mut out = vec![0u8, 0];
     while out.len() < k {
@@ -20,6 +22,7 @@ pub fn random_no_zero_set(k: usize) -> Vec<u8> {
     out
 }
 
+// Generate a set of k random u8 that are not zero and distinct
 pub fn random_no_zero_distinct_set(k: usize) -> Vec<u8> {
     let mut out_map = HashSet::new();
     while out_map.len() < k {
@@ -29,6 +32,7 @@ pub fn random_no_zero_distinct_set(k: usize) -> Vec<u8> {
     out_map.into_iter().collect::<Vec<u8>>()
 }
 
+// Generate a set of k random u8 that are not zero and distinct, with specific values excluded
 #[cfg(feature = "experimental")]
 pub fn random_no_zero_distinct_set_with_preset(k: usize, v: Vec<u8>) -> Vec<u8> {
     let mut out_map = HashSet::new();
@@ -43,19 +47,24 @@ pub fn random_no_zero_distinct_set_with_preset(k: usize, v: Vec<u8>) -> Vec<u8> 
     out_map.into_iter().collect::<Vec<u8>>()
 }
 
+// PKCS7 padding to a multiple of 8 bytes - 1
 pub fn pkcs7_pad(msg: &[u8]) -> Vec<u8> {
     let len = msg.len();
 
+    // If the message is already the correct length, return it
     if len % 8 == 7 {
         return msg.to_vec();
     }
 
+    // Calculate the length of the padding
     let mut pad_len = ((len + 7) / 8 * 8) - 1;
 
+    // If the padding length is less than the message length, add 8 bytes
     if pad_len < len {
         pad_len += 8;
     }
 
+    // Pad with the calculated length using PKCS7
     let mut block = vec![0; pad_len];
     block[..len].copy_from_slice(msg);
     Pkcs7::raw_pad(block.as_mut_slice(), len);
@@ -63,6 +72,7 @@ pub fn pkcs7_pad(msg: &[u8]) -> Vec<u8> {
 }
 
 pub fn pkcs7_unpad(input: Vec<u8>) -> Vec<u8> {
+    // Attempt to unpad the input using PKCS7
     match Pkcs7::raw_unpad(input.as_slice()) {
         Ok(v) => v.to_vec(),
         Err(_) => input.to_vec(),

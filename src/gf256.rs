@@ -1,11 +1,13 @@
 use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
-/* Primitive Polynomial x^8 + x^4 + x^3 + x + 1 with the high term eliminated.*/
+// Primitive Polynomial x^8 + x^4 + x^3 + x + 1 with the high term eliminated.
 const PRIMITIVE: u8 = 0x1b;
 
+// Galois Field 2^8 (256) type
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub(crate) struct GF256(u8);
 
+// Constants for GF256 and conversion to u8 
 impl GF256 {
     pub const ZERO: Self = GF256(0);
     pub const ONE: Self = GF256(1);
@@ -15,12 +17,14 @@ impl GF256 {
     }
 }
 
+// Conversion from u8 to GF256
 impl From<u8> for GF256 {
     fn from(val: u8) -> GF256 {
         GF256(val)
     }
 }
 
+// Addition in Galois Field
 impl Add for GF256 {
     type Output = GF256;
 
@@ -30,12 +34,14 @@ impl Add for GF256 {
     }
 }
 
+// In-place addition in Galois Field
 impl AddAssign for GF256 {
     fn add_assign(&mut self, other: GF256) {
         *self = self.add(other);
     }
 }
 
+// Subtraction in Galois Field
 impl Sub for GF256 {
     type Output = GF256;
 
@@ -44,17 +50,18 @@ impl Sub for GF256 {
     }
 }
 
+// In-place subtraction in Galois Field
 impl SubAssign for GF256 {
     fn sub_assign(&mut self, other: GF256) {
         self.add_assign(other)
     }
 }
 
+// Multiplication in Galois Field
 impl Mul for GF256 {
     type Output = GF256;
 
     fn mul(self, other: GF256) -> GF256 {
-        // TODO: Potential For Hardware Acceleration (CMUL)
         // Russian Peasant Multiplication
         let mut a: u8 = self.0;
         let mut b: u8 = other.0;
@@ -64,7 +71,7 @@ impl Mul for GF256 {
             // if b & 1 == 1 {
             //     p ^= a;
             // }
-            // MASKED:
+            // BIT MASKED:
             p ^= a & (b & 1).wrapping_neg();
 
             b >>= 1;
@@ -76,7 +83,7 @@ impl Mul for GF256 {
             // if carry != 0 {
             //     a ^= PRIMITIVE;
             // }
-            // MASKED:
+            // BIT MASKED:
             a ^= ((carry >> 7) & 1) * PRIMITIVE;
         }
 
@@ -84,18 +91,21 @@ impl Mul for GF256 {
     }
 }
 
+// In-place multiplication in Galois Field
 impl MulAssign for GF256 {
     fn mul_assign(&mut self, other: Self) {
         *self = self.mul(other)
     }
 }
 
+// Inverse in Galois Field
 impl GF256 {
     pub fn mul_inv(self) -> GF256 {
         let mut r: GF256;
         let mut y: GF256;
         let mut z: GF256;
 
+        // Fermat's Little Theorem (Fast Multiplicative Inverse Algorithm)
         y = self * self; // y = x^2
         y *= y; // y = x^4
         r = y * y; // r = x^8

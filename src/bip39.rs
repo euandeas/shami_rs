@@ -99,44 +99,47 @@ impl From<aead::ErrorAead> for ErrorBipAead {
     }
 }
 
+// Verify that a bit slice is a valid mnemonic
 fn verify_mnemonic(secret: &[u8]) -> Result<Mnemonic, ()> {
+    // Convert the secret to a string 
     let string = match std::str::from_utf8(secret) {
         Ok(s) => s,
         Err(_) => return Err(()),
     };
 
+    // Parse the string into a Mnemonic
     match Mnemonic::parse_normalized(string) {
         Ok(m) => Ok(m),
         Err(_) => Err(()),
     }
 }
 
-/// Explanation
+/// Build the shares for a secret. Converting the mnemonic secret to entropy and then splitting the entropy into shares.
 ///
 /// # Arguments
 ///
-/// * `p1` - A point in 2D space.
-///
+/// * `secret` - The secret that is to be shared.
+/// * `k` - The minimum number of shares required to rebuild the secret.
+/// * `n` - The total number of shares to generate.
+/// * `pad` - Whether to pad the secret to so shares are a multiple of 8 bytes.
+/// 
 /// # Returns
 ///
-/// * A float representing the distance.
+/// * A vector of shares in the form of a vector of bytes.
 ///
-/// # Example
-///
-/// ```
-///
-/// ```
 pub fn build_shares(
     secret: &[u8],
     k: usize,
     n: usize,
     pad: bool,
 ) -> Result<Vec<Vec<u8>>, ErrorBip> {
+    // Verify that the secret is a valid mnemonic
     let m = match verify_mnemonic(secret) {
         Ok(m) => m,
         Err(_) => return Err(ErrorBip::MnemonicError),
     };
 
+    // Convert the mnemonic to entropy and build the shares, using the base function
     let shares = match base::build_shares(&m.to_entropy(), k, n, pad) {
         Ok(shares) => shares,
         Err(e) => return Err(e.into()),
@@ -145,27 +148,24 @@ pub fn build_shares(
     Ok(shares)
 }
 
-/// Explanation
+/// Rebuild the secret from shares and produce a mnemonic from the entropy.
 ///
 /// # Arguments
 ///
-/// * `p1` - A point in 2D space.
-///
+/// * `shares` - The shares that are to be used to rebuild the secret.
+/// 
 /// # Returns
 ///
-/// * A float representing the distance.
+/// * A vector of bytes representing the secret.
 ///
-/// # Example
-///
-/// ```
-///
-/// ```
 pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorBip> {
+    // Rebuild the secret using the base function
     let secret = match base::rebuild_secret(shares) {
         Ok(secret) => secret,
         Err(e) => return Err(e.into()),
     };
 
+    // Convert the entropy to a mnemonic
     let m = match Mnemonic::from_entropy(&secret) {
         Ok(m) => m,
         Err(_) => return Err(ErrorBip::MnemonicError),
@@ -174,32 +174,32 @@ pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorBip> {
     Ok(m.to_string().into_bytes())
 }
 
-/// Explanation
+/// Build the shares for a secret. Converting the mnemonic secret to entropy and then splitting the entropy into shares. The entropy is encrypted with XChaCha20Poly1305 and then the key is split into shares.
 ///
 /// # Arguments
 ///
-/// * `p1` - A point in 2D space.
-///
+/// * `secret` - The secret that is to be shared.
+/// * `k` - The minimum number of shares required to rebuild the secret.
+/// * `n` - The total number of shares to generate.
+/// * `pad` - Whether to pad the secret to so shares are a multiple of 8 bytes.
+/// 
 /// # Returns
 ///
-/// * A float representing the distance.
+/// * A vector of shares in the form of a vector of bytes.
 ///
-/// # Example
-///
-/// ```
-///
-/// ```
 pub fn build_shares_aead(
     secret: &[u8],
     k: usize,
     n: usize,
     pad: bool,
 ) -> Result<Vec<Vec<u8>>, ErrorBipAead> {
+    // Verify that the secret is a valid mnemonic
     let m = match verify_mnemonic(secret) {
         Ok(m) => m,
         Err(_) => return Err(ErrorBipAead::MnemonicError),
     };
 
+    // Convert the mnemonic to entropy and build the shares, using the aead function
     let shares = match aead::build_shares(&m.to_entropy(), k, n, pad) {
         Ok(shares) => shares,
         Err(e) => return Err(e.into()),
@@ -208,27 +208,24 @@ pub fn build_shares_aead(
     Ok(shares)
 }
 
-/// Explanation
+/// Rebuild the encrypted secret from shares and produce a mnemonic from the entropy.
 ///
 /// # Arguments
 ///
-/// * `p1` - A point in 2D space.
-///
+/// * `shares` - The shares that are to be used to rebuild the secret.
+/// 
 /// # Returns
 ///
-/// * A float representing the distance.
+/// * A vector of bytes representing the secret.
 ///
-/// # Example
-///
-/// ```
-///
-/// ```
 pub fn rebuild_secret_aead(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorBipAead> {
+    // Rebuild the secret using the aead function
     let secret = match aead::rebuild_secret(shares) {
         Ok(secret) => secret,
         Err(e) => return Err(e.into()),
     };
 
+    // Convert the entropy to a mnemonic
     let m = match Mnemonic::from_entropy(&secret) {
         Ok(m) => m,
         Err(_) => return Err(ErrorBipAead::MnemonicError),
@@ -237,22 +234,22 @@ pub fn rebuild_secret_aead(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorBipAead
     Ok(m.to_string().into_bytes())
 }
 
-/// Explanation
+/// Build the shares for a secret, using some predefined shares. Converting the mnemonic secret to entropy and then splitting the entropy into shares.
 ///
 /// # Arguments
 ///
-/// * `p1` - A point in 2D space.
-///
+/// * `secret` - The secret that is to be shared.
+/// * `pre_shares` - The predefined shares to use in the generation of new shares.
+/// * `k` - The minimum number of shares required to rebuild the secret.
+/// * `n` - The total number of shares to generate.
+/// * `pad` - Whether to pad the secret to so shares are a multiple of 8 bytes.
+/// 
 /// # Returns
 ///
-/// * A float representing the distance.
+/// * A vector of shares in the form of a vector of bytes.
 ///
-/// # Example
-///
-/// ```
-///
-/// ```
 #[cfg(feature = "experimental")]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental")))]
 pub fn build_shares_predefined(
     secret: &[u8],
     pre_shares: Vec<Vec<u8>>,
@@ -260,11 +257,13 @@ pub fn build_shares_predefined(
     n: usize,
     pad: bool,
 ) -> Result<Vec<Vec<u8>>, ErrorBip> {
+    // Verify that the secret is a valid mnemonic
     let m = match verify_mnemonic(secret) {
         Ok(m) => m,
         Err(_) => return Err(ErrorBip::MnemonicError),
     };
 
+    // Convert the mnemonic to entropy and build the shares, passing the predefined shares to the base function
     let shares = match base::build_shares_predefined(&m.to_entropy(), pre_shares, k, n, pad) {
         Ok(shares) => shares,
         Err(e) => return Err(e.into()),
@@ -273,22 +272,22 @@ pub fn build_shares_predefined(
     Ok(shares)
 }
 
-/// Explanation
+/// Build the shares for a secret, using some predefined shares. Converting the mnemonic secret to entropy and then splitting the entropy into shares. The entropy is encrypted with XChaCha20Poly1305 and then the key is split into shares.
 ///
 /// # Arguments
 ///
-/// * `p1` - A point in 2D space.
-///
+/// * `secret` - The secret that is to be shared.
+/// * `pre_shares` - The predefined shares to use in the generation of new shares.
+/// * `k` - The minimum number of shares required to rebuild the secret.
+/// * `n` - The total number of shares to generate.
+/// * `pad` - Whether to pad the secret to so shares are a multiple of 8 bytes.
+/// 
 /// # Returns
 ///
-/// * A float representing the distance.
+/// * A vector of shares in the form of a vector of bytes.
 ///
-/// # Example
-///
-/// ```
-///
-/// ```
 #[cfg(feature = "experimental")]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental")))]
 pub fn build_shares_aead_predefined(
     secret: &[u8],
     pre_shares: Vec<Vec<u8>>,
@@ -296,11 +295,13 @@ pub fn build_shares_aead_predefined(
     n: usize,
     pad: bool,
 ) -> Result<Vec<Vec<u8>>, ErrorBipAead> {
+    // Verify that the secret is a valid mnemonic
     let m = match verify_mnemonic(secret) {
         Ok(m) => m,
         Err(_) => return Err(ErrorBipAead::MnemonicError),
     };
 
+    // Convert the mnemonic to entropy and build the shares, passing the predefined shares to the aead function
     let shares = match aead::build_shares_predefined(&m.to_entropy(), pre_shares, k, n, pad) {
         Ok(shares) => shares,
         Err(e) => return Err(e.into()),
@@ -354,7 +355,6 @@ mod tests {
     #[cfg(feature = "experimental")]
     #[test]
     fn test_build_shares_predefined() {
-        // Define inputs
         let secret = TEST_MNEMONIC.as_bytes();
         let mut pre_shares: Vec<Vec<u8>> = Vec::new();
 
@@ -373,13 +373,11 @@ mod tests {
         let k = 3;
         let n = 5;
 
-        // Call the function
         let result = build_shares_predefined(secret, pre_shares.clone(), k, n, false);
 
-        // Assertions
         match result {
             Ok(shares) => {
-                assert_eq!(shares.len(), 5); // Number of shares matches n
+                assert_eq!(shares.len(), 5); 
 
                 let shareset1 = shares.clone();
                 assert_eq!(

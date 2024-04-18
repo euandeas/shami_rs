@@ -1,7 +1,5 @@
-//! # Shami_rs
-//!
-//! A Lightweight, Secure, and Easy-to-Use Shamir's Secret Sharing Library.
-//!
+#![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod aead;
 pub mod base;

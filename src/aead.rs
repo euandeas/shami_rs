@@ -54,21 +54,19 @@ impl From<base::Error> for ErrorAead {
     }
 }
 
-/// Explanation
+/// Build the shares for a secret. The secret is encrypted with XChaCha20Poly1305 and then the key is split into shares.
 ///
 /// # Arguments
 ///
-/// * `p1` - A point in 2D space.
-///
+/// * `secret` - The secret that is to be shared.
+/// * `k` - The minimum number of shares required to rebuild the secret.
+/// * `n` - The total number of shares to generate.
+/// * `pad` - Whether to pad the secret to so shares are a multiple of 8 bytes.
+/// 
 /// # Returns
 ///
-/// * A float representing the distance.
+/// * A vector of shares in the form of a vector of bytes.
 ///
-/// # Example
-///
-/// ```
-///
-/// ```
 pub fn build_shares(
     secret: &[u8],
     k: usize,
@@ -77,22 +75,28 @@ pub fn build_shares(
 ) -> Result<Vec<Vec<u8>>, ErrorAead> {
     let mut setsecret: Vec<u8> = secret.to_vec();
 
+    // Pad the secret if required
     if pad {
         setsecret = pkcs7_pad(secret);
     }
 
+    // Generate a random key
     let key = XChaCha20Poly1305::generate_key(&mut OsRng);
     let cipher = XChaCha20Poly1305::new(&key);
+    
+    // Encrypt the secret
     let ciphertext = match cipher.encrypt(XNonce::from_slice(&[0; 24]), setsecret.as_slice()) {
         Ok(ciphertext) => ciphertext,
         Err(_) => return Err(ErrorAead::EncryptionError),
     };
 
+    // Pass the key to the base function to generate shares
     let mut shares = match base::build_shares(&key, k, n, false) {
         Ok(shares) => shares,
         Err(e) => return Err(e.into()),
     };
 
+    // Append the ciphertext to each share
     for share in &mut shares {
         share.extend_from_slice(&ciphertext);
     }
@@ -100,28 +104,26 @@ pub fn build_shares(
     Ok(shares)
 }
 
-/// Explanation
+/// Rebuild the encrypted secret from shares.
 ///
 /// # Arguments
 ///
-/// * `p1` - A point in 2D space.
-///
+/// * `shares` - The shares that are to be used to rebuild the secret.
+/// 
 /// # Returns
 ///
-/// * A float representing the distance.
+/// * A vector of bytes representing the secret.
 ///
-/// # Example
-///
-/// ```
-///
-/// ```
 pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorAead> {
     let mut keys = Vec::new();
+    
+    // Extract the keys from the shares
     for share in &shares {
         let key = &share[..33];
         keys.push(key.to_vec());
     }
 
+    // Rebuild the key using the base function
     let actual_key = match base::rebuild_secret(keys) {
         Ok(key) => key,
         Err(e) => return Err(e.into()),
@@ -132,12 +134,14 @@ pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorAead> {
         Err(_) => return Err(ErrorAead::KeyLengthError),
     };
 
+    // Decrypt the secret
     let ciphertext = &shares[0][33..];
     let plaintext = match cipher.decrypt(XNonce::from_slice(&[0; 24]), ciphertext) {
         Ok(plaintext) => plaintext,
         Err(_) => return Err(ErrorAead::DecryptionError),
     };
 
+    // Unpad the plaintext if required
     if plaintext.len() % 8 == 7 {
         Ok(pkcs7_unpad(plaintext))
     } else {
@@ -145,22 +149,22 @@ pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, ErrorAead> {
     }
 }
 
-/// Explanation
+/// Build the shares for a secret, using some predefined shares. The secret is encrypted with XChaCha20Poly1305 and then the key is split into shares.
 ///
 /// # Arguments
 ///
-/// * `p1` - A point in 2D space.
-///
+/// * `secret` - The secret that is to be shared.
+/// * `pre_shares` - The predefined shares to use in the generation of new shares.
+/// * `k` - The minimum number of shares required to rebuild the secret.
+/// * `n` - The total number of shares to generate.
+/// * `pad` - Whether to pad the secret to so shares are a multiple of 8 bytes.
+/// 
 /// # Returns
 ///
-/// * A float representing the distance.
+/// * A vector of shares in the form of a vector of bytes.
 ///
-/// # Example
-///
-/// ```
-///
-/// ```
 #[cfg(feature = "experimental")]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental")))]
 pub fn build_shares_predefined(
     secret: &[u8],
     pre_shares: Vec<Vec<u8>>,
@@ -170,22 +174,28 @@ pub fn build_shares_predefined(
 ) -> Result<Vec<Vec<u8>>, ErrorAead> {
     let mut setsecret: Vec<u8> = secret.to_vec();
 
+    // Pad the secret if required
     if pad {
         setsecret = pkcs7_pad(secret);
     }
 
+    // Generate a random key
     let key = XChaCha20Poly1305::generate_key(&mut OsRng);
     let cipher = XChaCha20Poly1305::new(&key);
+    
+    // Encrypt the secret
     let ciphertext = match cipher.encrypt(XNonce::from_slice(&[0; 24]), setsecret.as_slice()) {
         Ok(ciphertext) => ciphertext,
         Err(_) => return Err(ErrorAead::EncryptionError),
     };
 
+    // Pass the key to the base function to generate shares, along with the predefined shares
     let mut shares = match base::build_shares_predefined(&key, pre_shares, k, n, false) {
         Ok(shares) => shares,
         Err(e) => return Err(e.into()),
     };
 
+    // Append the ciphertext to each share
     for share in &mut shares {
         share.extend_from_slice(&ciphertext);
     }
@@ -220,7 +230,6 @@ mod tests {
     #[cfg(feature = "experimental")]
     #[test]
     fn test_build_shares_predefined() {
-        // Define inputs
         let secret = b"Hello";
         let mut pre_shares: Vec<Vec<u8>> = Vec::new();
 
@@ -239,14 +248,11 @@ mod tests {
         let k = 3;
         let n = 5;
 
-        // Call the function
         let result = build_shares_predefined(secret, pre_shares.clone(), k, n, false);
 
-        // Assertions
         match result {
             Ok(shares) => {
-                assert_eq!(shares.len(), 5); // Number of shares matches n
-
+                assert_eq!(shares.len(), 5);
                 let shareset1 = shares.clone();
                 assert_eq!(
                     rebuild_secret(shareset1[..3].to_vec()).unwrap(),

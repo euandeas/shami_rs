@@ -37,22 +37,21 @@ impl fmt::Display for Error {
     }
 }
 
-/// Explanation
+/// Build the shares for a secret.
 ///
 /// # Arguments
 ///
-/// * `p1` - A point in 2D space.
-///
+/// * `secret` - The secret that is to be shared.
+/// * `k` - The minimum number of shares required to rebuild the secret.
+/// * `n` - The total number of shares to generate.
+/// * `pad` - Whether to pad the secret to so shares are a multiple of 8 bytes.
+/// 
 /// # Returns
 ///
-/// * A float representing the distance.
+/// * A vector of shares in the form of a vector of bytes.
 ///
-/// # Example
-///
-/// ```
-///
-/// ```
 pub fn build_shares(secret: &[u8], k: usize, n: usize, pad: bool) -> Result<Vec<Vec<u8>>, Error> {
+    // Check for invalid inputs
     if n == 0 {
         return Err(Error::ZeroSharesError);
     }
@@ -67,11 +66,12 @@ pub fn build_shares(secret: &[u8], k: usize, n: usize, pad: bool) -> Result<Vec<
 
     let mut setsecret: Vec<u8> = secret.to_vec();
 
+    // Pad the secret if required
     if pad {
         setsecret = pkcs7_pad(secret);
     }
 
-    // create polynomial for each byte
+    // Create polynomials for each byte of the secret
     let polys: Vec<Vec<GF256>> = setsecret
         .iter()
         .enumerate()
@@ -90,6 +90,7 @@ pub fn build_shares(secret: &[u8], k: usize, n: usize, pad: bool) -> Result<Vec<
 
     let mut shares: Vec<Vec<u8>> = vec![vec![0u8; 0]; n];
 
+    // Generate shares one at a time, calculating the y value for the polynomial of each byte
     let random_bytes = random_no_zero_distinct_set(n);
     for (i, share) in shares.iter_mut().enumerate() {
         share.push(random_bytes[i]);
@@ -109,28 +110,25 @@ pub fn build_shares(secret: &[u8], k: usize, n: usize, pad: bool) -> Result<Vec<
     Ok(shares)
 }
 
-/// Explanation
+/// Rebuild the secret from shares.
 ///
 /// # Arguments
 ///
-/// * `p1` - A point in 2D space.
-///
+/// * `shares` - The shares that are to be used to rebuild the secret.
+/// 
 /// # Returns
 ///
-/// * A float representing the distance.
+/// * A vector of bytes representing the secret.
 ///
-/// # Example
-///
-/// ```
-///
-/// ```
 pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, Error> {
+    // Check for invalid inputs
     if shares.is_empty() {
         return Err(Error::ZeroSharesError);
     }
 
     let mut secret = vec![0u8; shares[0].len() - 1];
 
+    // Rebuild the secret using lagrange interpolation
     for i in 1..shares[0].len() {
         let mut secret_temp = GF256::ZERO;
         for share in shares.iter() {
@@ -151,6 +149,7 @@ pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, Error> {
         secret[i - 1] = secret_temp.as_u8();
     }
 
+    // Unpad the secret if required
     if secret.len() % 8 == 7 {
         Ok(pkcs7_unpad(secret))
     } else {
@@ -158,22 +157,22 @@ pub fn rebuild_secret(shares: Vec<Vec<u8>>) -> Result<Vec<u8>, Error> {
     }
 }
 
-/// Explanation
+/// Build the shares for a secret, using some predefined shares.
 ///
 /// # Arguments
 ///
-/// * `p1` - A point in 2D space.
-///
+/// * `secret` - The secret that is to be shared.
+/// * `pre_shares` - The predefined shares to use in the generation of new shares.
+/// * `k` - The minimum number of shares required to rebuild the secret.
+/// * `n` - The total number of shares to generate.
+/// * `pad` - Whether to pad the secret to so shares are a multiple of 8 bytes.
+/// 
 /// # Returns
 ///
-/// * A float representing the distance.
+/// * A vector of shares in the form of a vector of bytes.
 ///
-/// # Example
-///
-/// ```
-///
-/// ```
 #[cfg(feature = "experimental")]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental")))]
 pub fn build_shares_predefined(
     secret: &[u8],
     pre_shares: Vec<Vec<u8>>,
@@ -181,6 +180,7 @@ pub fn build_shares_predefined(
     n: usize,
     pad: bool,
 ) -> Result<Vec<Vec<u8>>, Error> {
+    // Check for invalid inputs
     if n == 0 {
         return Err(Error::ZeroSharesError);
     }
@@ -203,10 +203,12 @@ pub fn build_shares_predefined(
 
     let mut setsecret: Vec<u8> = secret.to_vec();
 
+    // Pad the secret if required
     if pad {
         setsecret = pkcs7_pad(secret);
     }
 
+    // Check for invalid predefined shares
     let seen_elements: std::collections::HashSet<u8> = std::collections::HashSet::new();
     for share in pre_shares.iter() {
         if share.len() != setsecret.len() + 1 {
@@ -218,13 +220,14 @@ pub fn build_shares_predefined(
         }
     }
 
+    // Add the secret as a share at x = 0
     let mut shares = pre_shares.clone();
     let mut sshare = vec![0u8; setsecret.len() + 1];
     sshare[0] = 0;
     sshare[1..].copy_from_slice(setsecret.as_slice());
     shares.push(sshare);
 
-    // GENERATE EXTRA RANDOM SHARES TO MATCH K
+    // Generate extra shares to match the threshold
     for _ in 0..(k - pre_shares.len() - 1) {
         let mut share = vec![0u8; secret.len() + 1];
         loop {
@@ -240,9 +243,9 @@ pub fn build_shares_predefined(
     let ncoefs = shares.len();
     let npolys = shares[0].len() - 1;
 
-    // create polynomial for each byte
     let mut polys: Vec<Vec<GF256>> = vec![vec![GF256::ZERO; ncoefs]; npolys];
 
+    // Calculate the polynomials for each byte of the secret, using lagrange interpolation
     for i in 1..shares[0].len() {
         let mut polytemp = vec![GF256::ZERO; ncoefs];
         for share in shares.iter() {
@@ -273,6 +276,8 @@ pub fn build_shares_predefined(
 
     let mut new_shares: Vec<Vec<u8>> = vec![vec![0u8; 0]; n - pre_shares.len()];
 
+    // Generate shares one at a time, calculating the y value for the polynomial of each byte
+    // Avoid using x values that were used in the predefined shares
     let random_bytes = random_no_zero_distinct_set_with_preset(
         n - pre_shares.len(),
         shares.iter().map(|x| x[0]).collect(),
@@ -327,7 +332,6 @@ mod tests {
     #[cfg(feature = "experimental")]
     #[test]
     fn test_build_shares_predefined() {
-        // Define inputs
         let secret = b"Hello";
         let mut pre_shares: Vec<Vec<u8>> = Vec::new();
 
@@ -346,15 +350,13 @@ mod tests {
         let k = 3;
         let n = 5;
 
-        // Call the function
         let result = build_shares_predefined(secret, pre_shares.clone(), k, n, false);
 
-        // Assertions
         match result {
             Ok(shares) => {
-                assert_eq!(shares.len(), 5); // Number of shares matches n
+                assert_eq!(shares.len(), 5);
                 for share in shares.iter() {
-                    assert_eq!(share.len(), secret.len() + 1); // Each share has length of secret + 1
+                    assert_eq!(share.len(), secret.len() + 1);
                 }
 
                 let shareset1 = shares.clone();
